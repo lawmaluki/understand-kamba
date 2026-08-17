@@ -1,8 +1,12 @@
-# kam-backend
+# understandkamba
+
+Turn speech into text, in Kikamba, Swahili, or English.
 
 Minimal FastAPI backend for a "chamgei-style" Kikamba speech-to-text +
 translation service: audio recording, file upload, or a video/social-media
-link goes in; a transcript and Swahili/English translation come out.
+link goes in; a transcript and Swahili/English translation come out. A
+static frontend (`frontend/`) also lets you translate typed Kikamba text
+directly, without any audio involved.
 
 This is a scaffold, not a finished product. Read `PLAN.md` first — it
 documents the build order and one important open question (whether the
@@ -97,8 +101,13 @@ kam-backend/
 │   ├── audio.py                # ffmpeg conversion/trim helpers
 │   ├── downloader.py           # yt-dlp: video/social URL -> audio file
 │   ├── translate.py            # Kikamba -> Swahili/English (LLM-based)
-│   └── main.py                 # FastAPI app: /transcribe, /transcribe-url, /health
+│   └── main.py                 # FastAPI app: /transcribe, /transcribe-url, /translate, /health
+├── frontend/                   # static UI served by main.py at "/" -- upload, URL, and text-translate tabs
+│   ├── index.html
+│   ├── style.css
+│   └── app.js
 └── scripts/
     ├── check_asr_model.py      # run first: does the Kamba adapter exist?
-    └── test_transcribe.py      # run second: transcribe one file, no API involved
+    ├── test_transcribe.py      # run second: transcribe one file, no API involved
+    └── test_translate.py       # standalone translation test, no API layer involved
 ```
