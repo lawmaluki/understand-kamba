@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kikamba Speech-to-Text</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">KAM</span>
+        <span class="brand-name">Kikamba Speech-to-Text &amp; Translation</span>
+      </div>
+      <div class="status" id="health-status">
+        <span class="status-dot" id="health-dot"></span>
+        <span id="health-text">Checking backend&hellip;</span>
+      </div>
+    </header>
+
+    <main>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="upload" role="tab" aria-selected="true">Upload Audio</button>
+        <button class="tab" data-tab="url" role="tab" aria-selected="false">From Video / Link</button>
+        <button class="tab" data-tab="text" role="tab" aria-selected="false">Translate Text</button>
+      </div>
+
+      <section class="panel active" id="panel-upload">
+        <form id="upload-form">
+          <label class="dropzone" for="file-input" id="dropzone">
+            <input type="file" id="file-input" name="file" accept="audio/*,video/*" hidden />
+            <span class="dropzone-icon">&#9835;</span>
+            <span class="dropzone-text" id="dropzone-text">Choose an audio/video file, or drag one here</span>
+          </label>
+          <button type="submit" class="primary-btn" id="upload-submit" disabled>Transcribe</button>
+        </form>
+      </section>
+
+      <section class="panel" id="panel-url">
+        <form id="url-form">
+          <label class="field-label" for="url-input">Video or social-media URL</label>
+          <input type="url" id="url-input" name="url" placeholder="https://..." required />
+          <button type="submit" class="primary-btn" id="url-submit">Transcribe</button>
+        </form>
+      </section>
+
+      <section class="panel" id="panel-text">
+        <form id="text-form">
+          <label class="field-label" for="text-input">Kikamba text &mdash; a word, sentence, or paragraph</label>
+          <textarea id="text-input" name="text" rows="6" placeholder="Andika kikamba haha..." required></textarea>
+          <button type="submit" class="primary-btn" id="text-submit">Translate</button>
+        </form>
+      </section>
+
+      <section class="results" id="results" hidden>
+        <div class="loading" id="loading" hidden>
+          <span class="spinner"></span>
+          <span id="loading-text">Transcribing&hellip; this can take a while on first run.</span>
+        </div>
+
+        <div class="error-banner" id="error-banner" hidden></div>
+
+        <div class="result-cards" id="result-cards" hidden>
+          <div class="card">
+            <h3 id="out-transcript-label">Kikamba text</h3>
+            <p class="transcript" id="out-transcript"></p>
+          </div>
+          <div class="card">
+            <h3>Swahili</h3>
+            <p class="translation" id="out-sw"></p>
+          </div>
+          <div class="card">
+            <h3>English</h3>
+            <p class="translation" id="out-en"></p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>kam-backend &mdash; ASR: facebook/mms-1b-all (kam adapter) &middot; scaffold, not a finished product</span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
