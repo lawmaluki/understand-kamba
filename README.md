@@ -2,7 +2,7 @@
 
 Turn speech into text, in Kikamba, Swahili, or English.
 
-Minimal FastAPI backend for a "chamgei-style" Kikamba speech-to-text +
+Minimal FastAPI backend for Kikamba speech-to-text +
 translation service: audio recording, file upload, or a video/social-media
 link goes in; a transcript and Swahili/English translation come out. A
 static frontend (`frontend/`) also lets you translate typed Kikamba text
