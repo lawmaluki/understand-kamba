@@ -64,6 +64,14 @@ export default function StudioCard() {
       if (id !== requestId.current) return;
       setResult({ direction, source: trimmed, translation, rating: null });
       refreshStats();
+      // On phones the result is stacked below the input (and the keyboard may
+      // cover it), so bring it into view.
+      if (window.matchMedia("(max-width: 767px)").matches) {
+        (document.activeElement as HTMLElement | null)?.blur();
+        requestAnimationFrame(() =>
+          document.getElementById("translation-output")?.scrollIntoView({ behavior: "smooth", block: "start" })
+        );
+      }
     } catch (err) {
       if (id !== requestId.current) return;
       setError(err instanceof Error ? err.message : "Translation failed.");
@@ -128,11 +136,12 @@ export default function StudioCard() {
         />
       </div>
 
+      {/* Fixed to the bottom of the screen so it's visible wherever you are on the page. */}
       <div
         role="status"
         aria-live="polite"
-        className={`mt-3 flex items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm text-white shadow-lg transition-all duration-200 ${
-          notice ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"
+        className={`fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-50 mx-auto flex max-w-md items-center gap-2 rounded-xl bg-neutral-900 px-4 py-3 text-sm text-white shadow-lg transition-all duration-200 ${
+          notice ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
         }`}
       >
         <Info className="h-4 w-4 shrink-0" aria-hidden />

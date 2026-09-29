@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -13,8 +13,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "English to Kikamba AI Translator & Voice Studio",
-  description: "Translate English to Kikamba with AI, and preview a voice studio UI.",
+  title: "Understand Kamba — English ⇄ Kikamba translator",
+  description:
+    "Translate between English and Kikamba, speak Kikamba to transcribe it, and hear translations read aloud.",
+};
+
+export const viewport: Viewport = {
+  // Matches the butter wash at the top of the page, so mobile browser chrome blends in.
+  themeColor: "#fcf6dc",
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

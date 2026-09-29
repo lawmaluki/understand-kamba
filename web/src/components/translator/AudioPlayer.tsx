@@ -109,7 +109,7 @@ export default function AudioPlayer({ text, onError }: AudioPlayerProps) {
           title={label}
           onClick={toggle}
           disabled={!text}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-butter-400 bg-butter-300 text-butter-900 transition hover:bg-butter-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-butter-500 active:scale-95 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full sm:h-9 sm:w-9 border border-butter-400 bg-butter-300 text-butter-900 transition hover:bg-butter-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-butter-500 active:scale-95 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400"
         >
           {status === "loading" ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
@@ -119,11 +119,12 @@ export default function AudioPlayer({ text, onError }: AudioPlayerProps) {
             <Play className="h-4 w-4 translate-x-[1px]" fill="currentColor" aria-hidden />
           )}
         </button>
-        <div aria-hidden className="flex h-6 min-w-0 flex-1 items-center gap-[3px] overflow-hidden">
+        {/* Bars shrink (down to hairlines) instead of overflowing on narrow screens. */}
+        <div aria-hidden className="flex h-6 min-w-0 flex-1 items-center justify-between gap-[2px] sm:gap-[3px]">
           {bars.map((p, i) => (
             <span
               key={i}
-              className={`w-[3px] shrink-0 rounded-full transition-colors ${
+              className={`min-w-px max-w-[3px] flex-1 rounded-full transition-colors ${
                 peaks && i / bars.length < progress ? "bg-butter-600" : "bg-neutral-300"
               }`}
               style={{ height: `${Math.max(3, Math.round(p * 22))}px` }}

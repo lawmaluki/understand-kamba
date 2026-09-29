@@ -85,12 +85,12 @@ export default function VoiceInput({ onTranscript, onError }: VoiceInputProps) {
   }
 
   const buttonClass =
-    "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-butter-500 disabled:opacity-40";
+    "inline-flex h-10 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-butter-500 disabled:opacity-40 sm:h-8 sm:px-2 sm:text-xs";
 
   if (status === "transcribing") {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs text-neutral-500">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+      <span className="inline-flex h-10 items-center gap-1.5 px-2.5 text-sm text-neutral-500 sm:h-8 sm:px-2 sm:text-xs">
+        <Loader2 className="h-4 w-4 animate-spin sm:h-3.5 sm:w-3.5" aria-hidden />
         Transcribing…
       </span>
     );
@@ -103,7 +103,10 @@ export default function VoiceInput({ onTranscript, onError }: VoiceInputProps) {
         onClick={() => recorderRef.current?.stop()}
         className={`${buttonClass} bg-red-50 text-red-700 hover:bg-red-100`}
       >
-        <Square className="h-3 w-3" fill="currentColor" aria-hidden />
+        <span className="relative flex h-2.5 w-2.5" aria-hidden>
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+          <Square className="relative h-2.5 w-2.5" fill="currentColor" />
+        </span>
         Stop · {seconds}s
       </button>
     );
@@ -117,17 +120,18 @@ export default function VoiceInput({ onTranscript, onError }: VoiceInputProps) {
         title="Speak Kikamba to fill in the text"
         className={`${buttonClass} text-butter-700 hover:bg-butter-100`}
       >
-        <Mic className="h-3.5 w-3.5" aria-hidden />
+        <Mic className="h-4 w-4 sm:h-3.5 sm:w-3.5" aria-hidden />
         Speak
       </button>
       <button
         type="button"
         onClick={() => fileRef.current?.click()}
+        aria-label="Upload audio"
         title="Upload a Kikamba audio or video file"
-        className={`${buttonClass} text-butter-700 hover:bg-butter-100`}
+        className={`${buttonClass} w-10 justify-center text-butter-700 hover:bg-butter-100 sm:w-auto`}
       >
-        <Upload className="h-3.5 w-3.5" aria-hidden />
-        Upload
+        <Upload className="h-4 w-4 sm:h-3.5 sm:w-3.5" aria-hidden />
+        <span className="hidden sm:inline">Upload</span>
       </button>
       <input
         ref={fileRef}

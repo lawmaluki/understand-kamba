@@ -66,11 +66,11 @@ export default function FooterControls({
   }
 
   const iconButtonClass =
-    "inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-butter-500 active:scale-[0.95] disabled:pointer-events-none disabled:opacity-40";
+    "inline-flex h-10 w-10 items-center justify-center rounded-md sm:h-8 sm:w-8 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-butter-500 active:scale-[0.95] disabled:pointer-events-none disabled:opacity-40";
   const ratedClass = "bg-butter-200 text-butter-900 hover:bg-butter-200 hover:text-butter-900";
 
   return (
-    <div className="flex flex-wrap items-center gap-1 px-3 py-2.5 sm:px-4">
+    <div className="flex items-center gap-1 px-2 py-1.5 sm:px-4 sm:py-2.5">
       <button
         type="button"
         aria-label="Copy translation"
@@ -93,27 +93,30 @@ export default function FooterControls({
         <Bookmark className="h-4 w-4" aria-hidden />
       </button>
 
-      <span aria-hidden className="mx-2 h-4 w-px bg-neutral-200" />
+      {/* On phones the rating buttons sit at the far right, without the label. */}
+      <span aria-hidden className="mx-2 hidden h-4 w-px bg-neutral-200 sm:block" />
 
-      <span className="mr-1 text-xs text-neutral-500">
-        {rating ? "Thanks for rating" : "Rate this translation"}
-      </span>
-      {(["up", "down"] as const).map((r) => {
-        const Icon = r === "up" ? ThumbsUp : ThumbsDown;
-        return (
-          <button
-            key={r}
-            type="button"
-            aria-label={r === "up" ? "Good translation" : "Poor translation"}
-            aria-pressed={rating === r}
-            onClick={() => onRate(r)}
-            disabled={!hasTranslation || rating !== null}
-            className={`${iconButtonClass} ${rating === r ? `${ratedClass} disabled:opacity-100` : ""}`}
-          >
-            <Icon className="h-4 w-4" aria-hidden />
-          </button>
-        );
-      })}
+      <div className="ml-auto flex items-center gap-1 sm:ml-0">
+        <span className="mr-1 hidden text-xs text-neutral-500 sm:inline">
+          {rating ? "Thanks for rating" : "Rate this translation"}
+        </span>
+        {(["up", "down"] as const).map((r) => {
+          const Icon = r === "up" ? ThumbsUp : ThumbsDown;
+          return (
+            <button
+              key={r}
+              type="button"
+              aria-label={r === "up" ? "Good translation" : "Poor translation"}
+              aria-pressed={rating === r}
+              onClick={() => onRate(r)}
+              disabled={!hasTranslation || rating !== null}
+              className={`${iconButtonClass} ${rating === r ? `${ratedClass} disabled:opacity-100` : ""}`}
+            >
+              <Icon className="h-4 w-4" aria-hidden />
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

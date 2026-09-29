@@ -15,7 +15,12 @@ export default function DialectSelector({ selectedId, onSelect }: DialectSelecto
         Dialects &amp; voices
       </h2>
 
-      <div role="radiogroup" aria-labelledby="dialects-heading" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Phones: a swipeable row that bleeds to the screen edges. Wider: a grid. */}
+      <div
+        role="radiogroup"
+        aria-labelledby="dialects-heading"
+        className="no-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4"
+      >
         {DIALECTS.map((dialect) => {
           const selected = dialect.id === selectedId;
           return (
@@ -25,7 +30,7 @@ export default function DialectSelector({ selectedId, onSelect }: DialectSelecto
               role="radio"
               aria-checked={selected}
               onClick={() => onSelect(dialect.id)}
-              className={`relative rounded-xl border p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-butter-500 ${
+              className={`relative w-[75%] shrink-0 snap-start rounded-xl border p-4 text-left transition sm:w-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-butter-500 ${
                 selected
                   ? "border-butter-400 bg-butter-50 shadow-[0_0_0_3px_rgba(248,226,122,0.35)]"
                   : "border-neutral-200 bg-white hover:border-butter-300 hover:bg-butter-50/40"

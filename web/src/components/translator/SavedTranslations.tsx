@@ -35,7 +35,7 @@ export default function SavedTranslations() {
                 type="button"
                 aria-label="Remove saved translation"
                 onClick={() => remove(item.id)}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-butter-500"
+                className="-mr-2 inline-flex h-10 w-10 shrink-0 sm:mr-0 sm:h-8 sm:w-8 items-center justify-center rounded-md text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-butter-500"
               >
                 <Trash2 className="h-4 w-4" aria-hidden />
               </button>
