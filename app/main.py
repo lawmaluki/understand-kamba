@@ -8,7 +8,7 @@ both been run successfully -- see README.md.
 import os
 import shutil
 import uuid
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,12 +43,14 @@ class TranscribeResponse(BaseModel):
 
 class TranslateRequest(BaseModel):
     text: str
+    direction: Literal["kam_to_sw_en", "en_to_kam"] = "kam_to_sw_en"
 
 
 class TranslateResponse(BaseModel):
     text: str
-    translation_sw: str
-    translation_en: str
+    translation_sw: Optional[str] = None
+    translation_en: Optional[str] = None
+    translation_kam: Optional[str] = None
 
 
 @app.get("/health")
@@ -69,7 +71,7 @@ def _process_audio_file(src_path: str) -> TranscribeResponse:
 
     translation_sw = None
     translation_en = None
-    if settings.anthropic_api_key and settings.translation_model:
+    if translate_mod.translation_available():
         translation_sw = translate_mod.translate(transcript, "Swahili")
         translation_en = translate_mod.translate(transcript, "English")
 
@@ -125,14 +127,20 @@ async def translate_text(req: TranslateRequest):
     text = req.text.strip()
     if not text:
         raise HTTPException(400, "text must not be empty")
-    if not (settings.anthropic_api_key and settings.translation_model):
+    if not translate_mod.translation_available():
         raise HTTPException(
             503,
             "translation not configured -- set ANTHROPIC_API_KEY and "
-            "TRANSLATION_MODEL in .env",
+            "TRANSLATION_MODEL in .env (or switch TRANSLATION_BACKEND to nllb)",
         )
 
     try:
+        if req.direction == "en_to_kam":
+            translation_kam = translate_mod.translate(
+                text, "Kikamba (Kamba language, Kenya)", source_language="English"
+            )
+            return TranslateResponse(text=text, translation_kam=translation_kam)
+
         translation_sw = translate_mod.translate(text, "Swahili")
         translation_en = translate_mod.translate(text, "English")
     except Exception as e:

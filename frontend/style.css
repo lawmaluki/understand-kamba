@@ -173,7 +173,8 @@ main {
 }
 
 #url-input,
-#text-input {
+#text-input,
+#direction-select {
   width: 100%;
   padding: 12px 14px;
   font-size: 14px;

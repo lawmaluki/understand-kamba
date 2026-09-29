@@ -47,7 +47,13 @@
 
       <section class="panel" id="panel-text">
         <form id="text-form">
-          <label class="field-label" for="text-input">Kikamba text &mdash; a word, sentence, or paragraph</label>
+          <label class="field-label" for="direction-select">Direction</label>
+          <select id="direction-select" name="direction">
+            <option value="kam_to_sw_en">Kikamba &rarr; Swahili / English</option>
+            <option value="en_to_kam">English &rarr; Kikamba</option>
+          </select>
+
+          <label class="field-label" for="text-input" id="text-input-label">Kikamba text &mdash; a word, sentence, or paragraph</label>
           <textarea id="text-input" name="text" rows="6" placeholder="Andika kikamba haha..." required></textarea>
           <button type="submit" class="primary-btn" id="text-submit">Translate</button>
         </form>
@@ -66,13 +72,17 @@
             <h3 id="out-transcript-label">Kikamba text</h3>
             <p class="transcript" id="out-transcript"></p>
           </div>
-          <div class="card">
+          <div class="card" id="card-sw">
             <h3>Swahili</h3>
             <p class="translation" id="out-sw"></p>
           </div>
-          <div class="card">
+          <div class="card" id="card-en">
             <h3>English</h3>
             <p class="translation" id="out-en"></p>
+          </div>
+          <div class="card" id="card-kam" hidden>
+            <h3>Kikamba</h3>
+            <p class="translation" id="out-kam"></p>
           </div>
         </div>
       </section>

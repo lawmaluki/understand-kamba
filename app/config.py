@@ -17,6 +17,8 @@ class Settings:
     sample_rate: int = int(os.getenv("SAMPLE_RATE", "16000"))
 
     # Translation
+    translation_backend: str = os.getenv("TRANSLATION_BACKEND", "nllb")  # "nllb" or "anthropic"
+    nllb_model_id: str = os.getenv("NLLB_MODEL_ID", "facebook/nllb-200-distilled-600M")
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
     translation_model: str = os.getenv("TRANSLATION_MODEL", "")
 

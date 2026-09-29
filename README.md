@@ -100,12 +100,17 @@ kam-backend/
 │   ├── asr.py                  # MMS wrapper: audio -> Kikamba text
 │   ├── audio.py                # ffmpeg conversion/trim helpers
 │   ├── downloader.py           # yt-dlp: video/social URL -> audio file
-│   ├── translate.py            # Kikamba -> Swahili/English (LLM-based)
+│   ├── translate.py            # Kikamba <-> Swahili/English/... (NLLB local, or Anthropic)
 │   └── main.py                 # FastAPI app: /transcribe, /transcribe-url, /translate, /health
 ├── frontend/                   # static UI served by main.py at "/" -- upload, URL, and text-translate tabs
 │   ├── index.html
 │   ├── style.css
 │   └── app.js
+├── web/                        # separate Next.js UI (English->Kikamba translator + voice-studio-style
+│   │                           # mockup); talks to the same FastAPI backend. `cd web && npm run dev`.
+│   │                           # See NEXT_PUBLIC_API_BASE_URL in .env.local.example. Dialect presets,
+│   │                           # voice synthesis, and the stats shown are UI placeholders, not live.
+│   └── src/
 └── scripts/
     ├── check_asr_model.py      # run first: does the Kamba adapter exist?
     ├── test_transcribe.py      # run second: transcribe one file, no API involved

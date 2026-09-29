@@ -22,16 +22,23 @@ const urlSubmit = document.getElementById("url-submit");
 
 const textForm = document.getElementById("text-form");
 const textInput = document.getElementById("text-input");
+const textInputLabel = document.getElementById("text-input-label");
 const textSubmit = document.getElementById("text-submit");
+const directionSelect = document.getElementById("direction-select");
 
 const results = document.getElementById("results");
 const loading = document.getElementById("loading");
 const loadingText = document.getElementById("loading-text");
 const errorBanner = document.getElementById("error-banner");
 const resultCards = document.getElementById("result-cards");
+const outTranscriptLabel = document.getElementById("out-transcript-label");
 const outTranscript = document.getElementById("out-transcript");
+const cardSw = document.getElementById("card-sw");
+const cardEn = document.getElementById("card-en");
+const cardKam = document.getElementById("card-kam");
 const outSw = document.getElementById("out-sw");
 const outEn = document.getElementById("out-en");
+const outKam = document.getElementById("out-kam");
 
 async function checkHealth() {
   try {
@@ -112,17 +119,25 @@ function renderTranslation(el, value) {
   }
 }
 
-function showResult(data) {
+function showResult(data, fields, sourceLabel) {
   loading.hidden = true;
   errorBanner.hidden = true;
   resultCards.hidden = false;
+
+  outTranscriptLabel.textContent = sourceLabel;
   const sourceText = data.transcript ?? data.text;
   outTranscript.textContent = sourceText || "(empty)";
-  renderTranslation(outSw, data.translation_sw);
-  renderTranslation(outEn, data.translation_en);
+
+  cardSw.hidden = !fields.includes("sw");
+  cardEn.hidden = !fields.includes("en");
+  cardKam.hidden = !fields.includes("kam");
+
+  if (fields.includes("sw")) renderTranslation(outSw, data.translation_sw);
+  if (fields.includes("en")) renderTranslation(outEn, data.translation_en);
+  if (fields.includes("kam")) renderTranslation(outKam, data.translation_kam);
 }
 
-async function handleResponse(resp) {
+async function handleResponse(resp, { fields, sourceLabel }) {
   if (!resp.ok) {
     let message = `Request failed (HTTP ${resp.status}).`;
     try {
@@ -135,7 +150,7 @@ async function handleResponse(resp) {
     return;
   }
   const data = await resp.json();
-  showResult(data);
+  showResult(data, fields, sourceLabel);
 }
 
 uploadForm.addEventListener("submit", async (e) => {
@@ -154,7 +169,7 @@ uploadForm.addEventListener("submit", async (e) => {
       method: "POST",
       body: formData,
     });
-    await handleResponse(resp);
+    await handleResponse(resp, { fields: ["sw", "en"], sourceLabel: "Kikamba text" });
   } catch (err) {
     showError(`Network error: ${err.message}`);
   } finally {
@@ -176,11 +191,21 @@ urlForm.addEventListener("submit", async (e) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url }),
     });
-    await handleResponse(resp);
+    await handleResponse(resp, { fields: ["sw", "en"], sourceLabel: "Kikamba text" });
   } catch (err) {
     showError(`Network error: ${err.message}`);
   } finally {
     urlSubmit.disabled = false;
+  }
+});
+
+directionSelect.addEventListener("change", () => {
+  if (directionSelect.value === "en_to_kam") {
+    textInputLabel.textContent = "English text — a word, sentence, or paragraph";
+    textInput.placeholder = "Type English here...";
+  } else {
+    textInputLabel.textContent = "Kikamba text — a word, sentence, or paragraph";
+    textInput.placeholder = "Andika kikamba haha...";
   }
 });
 
@@ -189,6 +214,10 @@ textForm.addEventListener("submit", async (e) => {
   const text = textInput.value.trim();
   if (!text) return;
 
+  const direction = directionSelect.value;
+  const fields = direction === "en_to_kam" ? ["kam"] : ["sw", "en"];
+  const sourceLabel = direction === "en_to_kam" ? "English text" : "Kikamba text";
+
   textSubmit.disabled = true;
   showLoading("Translating…");
 
@@ -196,9 +225,9 @@ textForm.addEventListener("submit", async (e) => {
     const resp = await fetch(`${API_BASE}/translate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, direction }),
     });
-    await handleResponse(resp);
+    await handleResponse(resp, { fields, sourceLabel });
   } catch (err) {
     showError(`Network error: ${err.message}`);
   } finally {
