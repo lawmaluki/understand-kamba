@@ -1,0 +1,12 @@
+venv/
+.venv/
+web/
+docs/
+data/
+tmp/
+scripts/
+.env
+.git/
+__pycache__/
+*.pyc
+uvicorn*

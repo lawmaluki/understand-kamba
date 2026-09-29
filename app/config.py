@@ -33,6 +33,11 @@ class Settings:
     max_translate_chars: int = int(os.getenv("MAX_TRANSLATE_CHARS", "500"))
 
     # Server
+    # Comma-separated sites allowed to call the API from a browser, e.g.
+    # "https://understand-kamba.vercel.app". "*" allows any site (local dev).
+    allowed_origins: tuple[str, ...] = tuple(
+        o.strip().rstrip("/") for o in os.getenv("ALLOWED_ORIGINS", "*").split(",") if o.strip()
+    )
     upload_max_mb: int = int(os.getenv("UPLOAD_MAX_MB", "25"))
     temp_dir: str = os.getenv("TEMP_DIR", os.path.join(tempfile.gettempdir(), "kam-backend"))
 

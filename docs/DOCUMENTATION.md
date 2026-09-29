@@ -15,7 +15,7 @@ Understand Kamba is a web app backed by a Python API. It lets you:
 
 All models run locally. No paid API or account is needed with the default settings, and no text or audio leaves the machine running the backend.
 
-**Status: working prototype.** Every feature in the interface is backed by a real model, but translation accuracy has not yet been checked by a Kikamba speaker, and the voice is a Swahili voice reading Kikamba (see section 8). Treat outputs as drafts, not authoritative translations.
+**Status: working prototype.** Every feature in the interface is backed by a real model, but translation accuracy has not yet been checked by a Kikamba speaker, and the voice is a Swahili voice reading Kikamba (see section 9). Treat outputs as drafts, not authoritative translations.
 
 ## 2. Features at a glance
 
@@ -138,6 +138,7 @@ Backend settings are read from environment variables, normally supplied through 
 | MAX_AUDIO_SECONDS | 60 | Audio longer than this is trimmed. Keep in step with MAX_RECORDING_SECONDS in web/src/lib/api.ts. |
 | SAMPLE_RATE | 16000 | Sample rate audio is converted to before transcription |
 | TTS_MODEL_ID | facebook/mms-tts-swh | Voice model; any MMS/VITS text-to-speech model works |
+| ALLOWED_ORIGINS | * | Sites allowed to call the API from a browser, comma-separated. Set to the web app's URL in production. |
 | UPLOAD_MAX_MB | 25 | Largest audio upload accepted |
 | TEMP_DIR | system temp folder/kam-backend | Where uploads are converted; files are deleted after each request |
 | DATA_DIR | data/ in the project folder | Where stats.json and feedback.jsonl are kept |
@@ -148,7 +149,32 @@ Web app setting (web/.env.local):
 |---|---|---|
 | NEXT_PUBLIC_API_BASE_URL | http://localhost:8000 | Address of the backend |
 
-## 7. API reference
+## 7. Deploying
+
+The two parts deploy to different places:
+
+- **Web app** on Vercel (or any Next.js host). It is small and fits comfortably.
+- **Backend** on a host that runs a long-lived server with about 8 GB of RAM and 10 GB of disk. It cannot run on Vercel: PyTorch and the other dependencies alone are about 5.5 GB, far over Vercel's 500 MB function limit, and the models need several GB of memory. Suitable hosts include a Hugging Face Space (Docker), Render, Railway, Fly.io or a VPS.
+
+### 7.1 Backend
+
+The repository's Dockerfile builds the backend image. It installs CPU-only PyTorch and listens on port 7860 (override with the PORT variable).
+
+On a Hugging Face Space: create a Space with the Docker SDK, push this repository to it, and add the settings from section 6 as Space variables. The Space's README must start with a front-matter block containing sdk: docker and app_port: 7860.
+
+On other hosts: point the host at the Dockerfile, expose port 7860, and set the environment variables there.
+
+Set ALLOWED_ORIGINS to the web app's address, for example https://understand-kamba.vercel.app. The backend must be served over HTTPS, because browsers block an HTTPS page from calling an HTTP API.
+
+Models download on the first request after each start unless the host keeps a persistent disk for HF_HOME, so the first request after a restart is slow. On hosts without a persistent disk, data/ (stats and ratings) is also reset on restart; set DATA_DIR to a persistent volume to keep it.
+
+### 7.2 Web app on Vercel
+
+1. In the Vercel project, open Settings, then Build and Deployment, and set **Root Directory** to web. Without this, Vercel finds requirements.txt at the top of the repository and tries to build the Python backend, which fails with "Total bundle size exceeds the maximum function size (500 MB)".
+2. Under Settings, Environment Variables, add NEXT_PUBLIC_API_BASE_URL with the backend's HTTPS address.
+3. Redeploy. The API address is built into the site at build time, so redeploy again whenever it changes.
+
+## 8. API reference
 
 All endpoints accept and return JSON unless noted. Errors return a JSON body of the form {"detail": "..."}. Interactive docs are available at http://localhost:8000/docs while the backend is running.
 
@@ -230,7 +256,7 @@ rating is up or down. Errors: 422 for any other value.
 
 Returns {"status": "ok"}.
 
-## 8. Models and quality
+## 9. Models and quality
 
 ### Translation: NLLB-200
 
@@ -256,7 +282,7 @@ To switch voices later, set TTS_MODEL_ID to any MMS/VITS model, for example a fu
 
 The most useful next step is a test set: 30 to 50 typical English sentences with Kikamba translations written by a speaker. Scoring each model against it gives a real accuracy figure and shows whether a larger model (NLLB 1.3B) or the Anthropic backend is worth using. The ratings log in data/feedback.jsonl is a good source of sentences that went wrong.
 
-## 9. Data and privacy
+## 10. Data and privacy
 
 | Data | Where it is kept | Lifetime |
 |---|---|---|
@@ -270,7 +296,7 @@ Text and audio are not sent to any outside service with the default settings. If
 
 The data/ folder is excluded from git.
 
-## 10. Project structure
+## 11. Project structure
 
 ```
 understand-kamba/
@@ -296,12 +322,13 @@ understand-kamba/
   docs/             this documentation
   data/             stats and ratings (created on first use)
   .env.example      configuration template
+  Dockerfile        backend image for deployment (section 7)
   requirements.txt  Python dependencies
 ```
 
 The accent colour is butter yellow (#F8E27A), defined as the butter-50 to butter-900 scale in web/src/app/globals.css. Use butter-300 for fills and butter-700 or darker for text on white.
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 **"Couldn't reach the translation server" in the web app.** The backend is not running, or NEXT_PUBLIC_API_BASE_URL points somewhere else. Start the backend (section 4.4) and check http://localhost:8000/health.
 
@@ -317,12 +344,12 @@ The accent colour is butter yellow (#F8E27A), defined as the butter-50 to butter
 
 **Stats are not updating.** Stats are written to DATA_DIR by a single backend process. Running several backend workers at once is not supported.
 
-## 12. Known limitations and next steps
+## 13. Known limitations and next steps
 
-- Translation accuracy is unmeasured. Build a speaker-checked test set (section 8).
+- Translation accuracy is unmeasured. Build a speaker-checked test set (section 9).
 - No real Kikamba voice. Revisit if Meta or the community publishes one.
 - Dialect selection does not change the output; there are no per-dialect models.
 - No formal-register option.
-- No login, rate limiting or abuse protection, and CORS allows any origin. Tighten these before deploying publicly.
+- No login, rate limiting or abuse protection. Add these, and set ALLOWED_ORIGINS, before deploying publicly.
 - Stats storage supports a single backend process; move it to a database before scaling.
 - No automated tests or deployment pipeline yet.

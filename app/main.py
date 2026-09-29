@@ -26,11 +26,11 @@ from .translate import ENGLISH, KIKAMBA, SWAHILI
 
 app = FastAPI(title="kam-backend", version="0.1.0")
 
-# Wide open for local dev. Tighten allow_origins before deploying anywhere
-# public.
+# ALLOWED_ORIGINS defaults to "*" for local dev; set it to the web app's URL
+# when deploying.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=list(settings.allowed_origins),
     allow_methods=["*"],
     allow_headers=["*"],
 )

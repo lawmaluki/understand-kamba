@@ -14,6 +14,10 @@ A FastAPI backend plus a Next.js web app (`web/`) for Kikamba:
 Full documentation: [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md)
 (PDF: `docs/Understand-Kamba-Documentation.pdf`).
 
+**Deploying:** the web app goes on Vercel with Root Directory set to `web`;
+the backend is too large for Vercel and runs from the `Dockerfile` on a host
+with ~8 GB RAM. See section 7 of the documentation.
+
 Models download on first use (~7 GB total). Dialect choices in the web UI
 are labels only — every dialect uses the same models. `PLAN.md` has the
 original build plan.
