@@ -1,0 +1,10 @@
+# Installed by the Space alongside gradio (version set by sdk_version in README.md).
+# ZeroGPU supports torch 2.8-2.13; the models run on CPU either way.
+spaces
+torch==2.13.0
+transformers>=4.40
+soundfile>=0.12
+imageio-ffmpeg>=0.5
+python-multipart>=0.0.9
+yt-dlp>=2024.4.9
+anthropic>=0.34
