@@ -8,3 +8,7 @@ venv/
 *.m4a
 *.webm
 .claude/
+uvicorn*.pid
+uvicorn*.log
+tmp/
+data/

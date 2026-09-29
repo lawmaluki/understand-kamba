@@ -16,15 +16,22 @@ Two backends:
 
 Select with TRANSLATION_BACKEND in .env ("nllb" or "anthropic").
 """
+import re
 import threading
 
 from .config import settings
 
+# Language names double as the wording in the Anthropic prompt, hence the
+# disambiguating "(Kamba language, Kenya)".
+KIKAMBA = "Kikamba (Kamba language, Kenya)"
+ENGLISH = "English"
+SWAHILI = "Swahili"
+
 # FLORES-200 codes NLLB expects. Extend this if more languages are needed.
 _NLLB_LANG_CODES = {
-    "Kikamba (Kamba language, Kenya)": "kam_Latn",
-    "English": "eng_Latn",
-    "Swahili": "swh_Latn",
+    KIKAMBA: "kam_Latn",
+    ENGLISH: "eng_Latn",
+    SWAHILI: "swh_Latn",
 }
 
 _nllb_lock = threading.Lock()
@@ -46,18 +53,45 @@ def _load_nllb():
         _nllb_model.eval()
 
 
+# Split after sentence-final punctuation followed by whitespace. NLLB is
+# trained on single sentences; feeding it a paragraph makes it drop or
+# hallucinate clauses, so each sentence is translated on its own.
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+
+
+def split_sentences(text: str) -> list[str]:
+    return [s.strip() for s in _SENTENCE_SPLIT.split(text.strip()) if s.strip()]
+
+
 def _nllb_translate(text: str, source_language: str, target_language: str) -> str:
     if source_language not in _NLLB_LANG_CODES or target_language not in _NLLB_LANG_CODES:
         raise ValueError(
             f"no NLLB language code known for {source_language!r} -> "
             f"{target_language!r}; add it to _NLLB_LANG_CODES in translate.py"
         )
+    sentences = split_sentences(text)
+    if not sentences:
+        return ""
+
+    import torch
+
     _load_nllb()
-    _nllb_tokenizer.src_lang = _NLLB_LANG_CODES[source_language]
-    inputs = _nllb_tokenizer(text, return_tensors="pt")
+    with _nllb_lock:  # tokenizer.src_lang is shared mutable state
+        _nllb_tokenizer.src_lang = _NLLB_LANG_CODES[source_language]
+        inputs = _nllb_tokenizer(sentences, return_tensors="pt", padding=True)
     tgt_id = _nllb_tokenizer.convert_tokens_to_ids(_NLLB_LANG_CODES[target_language])
-    out = _nllb_model.generate(**inputs, forced_bos_token_id=tgt_id, max_length=512)
-    return _nllb_tokenizer.batch_decode(out, skip_special_tokens=True)[0].strip()
+    # Cap output relative to input so the model can't run on and invent text.
+    max_new_tokens = int(inputs["input_ids"].shape[1] * 2) + 16
+    with torch.inference_mode():
+        out = _nllb_model.generate(
+            **inputs,
+            forced_bos_token_id=tgt_id,
+            num_beams=settings.nllb_num_beams,
+            max_new_tokens=max_new_tokens,
+            no_repeat_ngram_size=4,
+        )
+    decoded = _nllb_tokenizer.batch_decode(out, skip_special_tokens=True)
+    return " ".join(d.strip() for d in decoded)
 
 
 _anthropic_client = None
@@ -94,16 +128,11 @@ def _anthropic_translate(text: str, source_language: str, target_language: str) 
     return resp.content[0].text.strip()
 
 
-def translate(
-    text: str,
-    target_language: str,
-    source_language: str = "Kikamba (Kamba language, Kenya)",
-) -> str:
-    """target_language / source_language: e.g. 'Swahili', 'English', or
-    'Kikamba (Kamba language, Kenya)'. Defaults to the original Kikamba ->
-    X direction; pass source_language="English" for the reverse direction.
-    Backend (NLLB, local + free, or Anthropic, API-key-based) is chosen by
-    TRANSLATION_BACKEND in .env."""
+def translate(text: str, target_language: str, source_language: str = KIKAMBA) -> str:
+    """Languages are the KIKAMBA / ENGLISH / SWAHILI constants above.
+    Defaults to Kikamba -> target; pass source_language=ENGLISH for the
+    reverse direction. Backend (NLLB, local + free, or Anthropic,
+    API-key-based) is chosen by TRANSLATION_BACKEND in .env."""
     if settings.translation_backend == "anthropic":
         return _anthropic_translate(text, source_language, target_language)
     return _nllb_translate(text, source_language, target_language)
