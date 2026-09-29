@@ -54,7 +54,7 @@ export default function StudioHeader({
       <div
         role="radiogroup"
         aria-label="Translation direction"
-        className="inline-flex rounded-lg border border-neutral-200 p-0.5"
+        className="grid w-full grid-cols-2 rounded-lg border border-neutral-200 p-0.5 sm:inline-grid sm:w-auto"
       >
         {DIRECTIONS.map((d) => {
           const active = direction === d.id;
@@ -65,7 +65,7 @@ export default function StudioHeader({
               role="radio"
               aria-checked={active}
               onClick={() => !active && onDirectionChange(d.id)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-butter-500 ${
+              className={`whitespace-nowrap rounded-md px-1.5 py-3 text-xs font-medium min-[360px]:px-2 min-[360px]:text-[13px] transition sm:px-3 sm:py-1.5 sm:text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-butter-500 ${
                 active
                   ? "bg-butter-300 text-butter-900 ring-1 ring-inset ring-butter-400"
                   : "text-neutral-600 hover:text-neutral-900"
