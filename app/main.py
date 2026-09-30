@@ -9,17 +9,18 @@ Model inference is blocking, so every route that runs a model is either a
 plain `def` (FastAPI runs those in a worker thread) or hands the work to
 run_in_threadpool -- never call a model directly inside `async def`.
 """
+import functools
 import os
 import uuid
 from typing import Literal, Optional
 
-from fastapi import FastAPI, File, HTTPException, Response, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import asr, audio, downloader, stats, tts
+from . import asr, audio, downloader, stats, tts, voice
 from . import translate as translate_mod
 from .config import settings
 from .translate import ENGLISH, KIKAMBA, SWAHILI
@@ -59,6 +60,7 @@ class TranslateResponse(BaseModel):
     translation_sw: Optional[str] = None
     translation_en: Optional[str] = None
     translation_kam: Optional[str] = None
+    model: Optional[str] = None  # which model produced it (e.g. GPU model vs CPU fallback)
 
 
 class SynthesizeRequest(BaseModel):
@@ -90,6 +92,25 @@ def _temp_path(suffix: str = "") -> str:
     return os.path.join(settings.temp_dir, uuid.uuid4().hex + suffix)
 
 
+async def _save_upload(file: UploadFile, limit_mb: int) -> str:
+    """Stream an upload to a temp file (caller deletes it). Raises 413 past limit_mb."""
+    # Keep only the extension (ffmpeg uses it as a format hint); the client's
+    # filename never touches the path, so it can't escape temp_dir.
+    path = _temp_path(os.path.splitext(os.path.basename(file.filename or ""))[1])
+    size = 0
+    try:
+        with open(path, "wb") as f:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > limit_mb * 1024 * 1024:
+                    raise HTTPException(413, f"file exceeds {limit_mb}MB limit")
+                f.write(chunk)
+    except BaseException:
+        _remove_quietly(path)
+        raise
+    return path
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -116,24 +137,11 @@ def _process_audio_file(src_path: str, translate: bool = True) -> TranscribeResp
 async def transcribe(file: UploadFile = File(...), translate: bool = True):
     """Kikamba audio -> transcript. Pass ?translate=false to skip the
     Swahili/English translations (the web UI translates separately)."""
-    # Keep only the extension (ffmpeg uses it as a format hint); the client's
-    # filename never touches the path, so it can't escape temp_dir.
-    src_path = _temp_path(os.path.splitext(os.path.basename(file.filename or ""))[1])
-    limit = settings.upload_max_mb * 1024 * 1024
-
+    src_path = await _save_upload(file, settings.upload_max_mb)
     try:
-        size = 0
-        with open(src_path, "wb") as f:
-            while chunk := await file.read(1024 * 1024):
-                size += len(chunk)
-                if size > limit:
-                    raise HTTPException(413, f"file exceeds {settings.upload_max_mb}MB limit")
-                f.write(chunk)
-
-        try:
-            return await run_in_threadpool(_process_audio_file, src_path, translate)
-        except Exception as e:
-            raise HTTPException(500, f"transcription failed: {e}")
+        return await run_in_threadpool(_process_audio_file, src_path, translate)
+    except Exception as e:
+        raise HTTPException(500, f"transcription failed: {e}")
     finally:
         _remove_quietly(src_path)
 
@@ -167,12 +175,11 @@ def translate_text(req: TranslateRequest):
 
     try:
         if req.direction == "en_to_kam":
-            result = TranslateResponse(
-                text=text,
-                translation_kam=translate_mod.translate(text, KIKAMBA, source_language=ENGLISH),
-            )
+            kam, model = translate_mod.translate_with_model(text, KIKAMBA, source_language=ENGLISH)
+            result = TranslateResponse(text=text, translation_kam=kam, model=model)
         elif req.direction == "kam_to_en":
-            result = TranslateResponse(text=text, translation_en=translate_mod.translate(text, ENGLISH))
+            en, model = translate_mod.translate_with_model(text, ENGLISH)
+            result = TranslateResponse(text=text, translation_en=en, model=model)
         else:
             result = TranslateResponse(
                 text=text,
@@ -204,6 +211,64 @@ def get_stats():
 @app.post("/feedback", response_model=StatsResponse)
 def feedback(req: FeedbackRequest):
     return stats.record_feedback(req.rating, req.direction, req.text, req.translation)
+
+
+class VoicePrompt(BaseModel):
+    id: str
+    text: str
+
+
+class VoicePromptsResponse(BaseModel):
+    prompts: list[VoicePrompt]
+    consent_version: str
+    max_seconds: int
+
+
+@app.get("/voice/prompts", response_model=VoicePromptsResponse)
+def voice_prompts():
+    """Kikamba sentences for contributors to read aloud (see app/voice.py)."""
+    return VoicePromptsResponse(
+        prompts=[VoicePrompt(id=k, text=v) for k, v in voice.prompts().items()],
+        consent_version=voice.CONSENT_VERSION,
+        max_seconds=settings.voice_max_seconds,
+    )
+
+
+@app.post("/voice/recordings")
+async def voice_recording(
+    request: Request,
+    file: UploadFile = File(...),
+    prompt_id: str = Form(...),
+    speaker_id: str = Form(...),
+    dialect: str = Form(...),
+    consent: bool = Form(...),
+    gender: str = Form(""),
+    age_range: str = Form(""),
+):
+    """Store one contributed recording of a prompt sentence."""
+    # Behind the Hugging Face proxy the client is the first X-Forwarded-For entry.
+    forwarded = request.headers.get("x-forwarded-for", "")
+    client_ip = forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
+    try:
+        voice.check_rate_limit(client_ip)
+    except voice.RejectedRecording as e:
+        raise HTTPException(429, str(e))
+
+    src_path = await _save_upload(file, settings.voice_upload_max_mb)
+    try:
+        row = await run_in_threadpool(
+            functools.partial(
+                voice.save_recording, src_path, prompt_id=prompt_id, speaker_id=speaker_id,
+                dialect=dialect, gender=gender, age_range=age_range, consent=consent,
+            )
+        )
+    except voice.RejectedRecording as e:
+        raise HTTPException(422, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"could not save recording: {e}")
+    finally:
+        _remove_quietly(src_path)
+    return {"ok": True, "duration_seconds": row["duration_seconds"]}
 
 
 # Serves frontend/ at "/" -- registered last so it only catches requests that

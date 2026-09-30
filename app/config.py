@@ -20,6 +20,15 @@ class Settings:
 
     # Where translation counts and user ratings are kept (see app/stats.py).
     data_dir: str = os.getenv("DATA_DIR", os.path.join(os.path.dirname(__file__), "..", "data"))
+
+    # Voice-recording contributions (see app/voice.py). With VOICE_DATASET_REPO
+    # set (e.g. "lawmaluki/kamba-voice-recordings") recordings are pushed to
+    # that private Hugging Face dataset, using the HF_TOKEN environment
+    # variable; otherwise they're only kept locally under data/voice.
+    voice_dataset_repo: str = os.getenv("VOICE_DATASET_REPO", "")
+    voice_max_seconds: int = int(os.getenv("VOICE_MAX_SECONDS", "20"))
+    voice_upload_max_mb: int = int(os.getenv("VOICE_UPLOAD_MAX_MB", "5"))
+    voice_uploads_per_hour: int = int(os.getenv("VOICE_UPLOADS_PER_HOUR", "120"))
     max_audio_seconds: int = int(os.getenv("MAX_AUDIO_SECONDS", "60"))
     sample_rate: int = int(os.getenv("SAMPLE_RATE", "16000"))
 

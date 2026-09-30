@@ -11,4 +11,4 @@ venv/
 uvicorn*.pid
 uvicorn*.log
 tmp/
-data/
+/data/

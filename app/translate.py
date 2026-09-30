@@ -63,7 +63,41 @@ def split_sentences(text: str) -> list[str]:
     return [s.strip() for s in _SENTENCE_SPLIT.split(text.strip()) if s.strip()]
 
 
-def _nllb_translate(text: str, source_language: str, target_language: str) -> str:
+def nllb_generate(model, tokenizer, sentences: list[str], src_code: str, tgt_code: str, device: str = "cpu") -> list[str]:
+    """Translate a batch of sentences with an NLLB model. Shared by the CPU
+    path below and the Space's GPU path (space/server.py)."""
+    import torch
+
+    with _nllb_lock:  # tokenizer.src_lang is shared mutable state
+        tokenizer.src_lang = src_code
+        inputs = tokenizer(sentences, return_tensors="pt", padding=True).to(device)
+    # Cap output relative to input so the model can't run on and invent text.
+    max_new_tokens = int(inputs["input_ids"].shape[1] * 2) + 16
+    with torch.inference_mode():
+        out = model.generate(
+            **inputs,
+            forced_bos_token_id=tokenizer.convert_tokens_to_ids(tgt_code),
+            num_beams=settings.nllb_num_beams,
+            max_new_tokens=max_new_tokens,
+            no_repeat_ngram_size=4,
+        )
+    return [d.strip() for d in tokenizer.batch_decode(out, skip_special_tokens=True)]
+
+
+# Optional faster translator, installed by space/server.py when a GPU model is
+# configured: (sentences, src_code, tgt_code) -> list[str]. If it raises (e.g.
+# the Space's GPU quota is used up) the local CPU model is used instead.
+_accelerator = None
+_accelerator_name = None
+
+
+def set_accelerator(fn, name: str) -> None:
+    global _accelerator, _accelerator_name
+    _accelerator, _accelerator_name = fn, name
+
+
+def _nllb_translate(text: str, source_language: str, target_language: str) -> tuple[str, str]:
+    """Returns (translation, id of the model that produced it)."""
     if source_language not in _NLLB_LANG_CODES or target_language not in _NLLB_LANG_CODES:
         raise ValueError(
             f"no NLLB language code known for {source_language!r} -> "
@@ -71,27 +105,17 @@ def _nllb_translate(text: str, source_language: str, target_language: str) -> st
         )
     sentences = split_sentences(text)
     if not sentences:
-        return ""
+        return "", settings.nllb_model_id
+    src, tgt = _NLLB_LANG_CODES[source_language], _NLLB_LANG_CODES[target_language]
 
-    import torch
+    if _accelerator is not None:
+        try:
+            return " ".join(_accelerator(sentences, src, tgt)), _accelerator_name
+        except Exception as e:
+            print(f"[translate] {_accelerator_name} unavailable ({e}); using {settings.nllb_model_id}", flush=True)
 
     _load_nllb()
-    with _nllb_lock:  # tokenizer.src_lang is shared mutable state
-        _nllb_tokenizer.src_lang = _NLLB_LANG_CODES[source_language]
-        inputs = _nllb_tokenizer(sentences, return_tensors="pt", padding=True)
-    tgt_id = _nllb_tokenizer.convert_tokens_to_ids(_NLLB_LANG_CODES[target_language])
-    # Cap output relative to input so the model can't run on and invent text.
-    max_new_tokens = int(inputs["input_ids"].shape[1] * 2) + 16
-    with torch.inference_mode():
-        out = _nllb_model.generate(
-            **inputs,
-            forced_bos_token_id=tgt_id,
-            num_beams=settings.nllb_num_beams,
-            max_new_tokens=max_new_tokens,
-            no_repeat_ngram_size=4,
-        )
-    decoded = _nllb_tokenizer.batch_decode(out, skip_special_tokens=True)
-    return " ".join(d.strip() for d in decoded)
+    return " ".join(nllb_generate(_nllb_model, _nllb_tokenizer, sentences, src, tgt)), settings.nllb_model_id
 
 
 _anthropic_client = None
@@ -128,14 +152,19 @@ def _anthropic_translate(text: str, source_language: str, target_language: str) 
     return resp.content[0].text.strip()
 
 
+def translate_with_model(text: str, target_language: str, source_language: str = KIKAMBA) -> tuple[str, str]:
+    """Like translate(), but also returns the id of the model that produced the translation."""
+    if settings.translation_backend == "anthropic":
+        return _anthropic_translate(text, source_language, target_language), settings.translation_model
+    return _nllb_translate(text, source_language, target_language)
+
+
 def translate(text: str, target_language: str, source_language: str = KIKAMBA) -> str:
     """Languages are the KIKAMBA / ENGLISH / SWAHILI constants above.
     Defaults to Kikamba -> target; pass source_language=ENGLISH for the
     reverse direction. Backend (NLLB, local + free, or Anthropic,
     API-key-based) is chosen by TRANSLATION_BACKEND in .env."""
-    if settings.translation_backend == "anthropic":
-        return _anthropic_translate(text, source_language, target_language)
-    return _nllb_translate(text, source_language, target_language)
+    return translate_with_model(text, target_language, source_language)[0]
 
 
 def translation_available() -> bool:
