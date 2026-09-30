@@ -2,7 +2,7 @@
 
 Why the backend could not stay where it was, what we considered, how we moved it, and what comes next.
 
-Date: 29 September 2026 · Status: backend live; web app still needs to be pointed at it (section 8)
+Date: 29 September 2026 · Status: backend live; web app still needs to be pointed at it (section 8). Updated 30 September 2026 (section 10).
 
 ## 1. Summary
 
@@ -186,21 +186,56 @@ The Space rebuilds and restarts in about two minutes. Build and run logs are at 
 ## 8. Immediately outstanding
 
 1. **Point the website at the Space.** In Vercel, go to Settings, then Environment Variables, and add NEXT_PUBLIC_API_BASE_URL with the value https://lawmaluki-understand-kamba-api.hf.space (no trailing slash). Then redeploy: the address is built into the site at build time.
-2. **Replace the Hugging Face token.** The write token was pasted into a chat during setup. Delete it at huggingface.co/settings/tokens, create a new one, and log in again with hf auth login. The deploy script uses whatever token that login saves.
-3. **Commit the Space files.** space/ and scripts/deploy_space.py exist locally but are not yet in git.
+2. **Replace the Hugging Face token.** The write token was pasted into a chat during setup, and it is also stored as the Space's HF_TOKEN secret (used to push voice recordings). Delete it at huggingface.co/settings/tokens and create a new one; ideally a fine-grained token with write access to only the Space and the kamba-voice-recordings dataset. Then log in again with hf auth login and update the HF_TOKEN secret in the Space's settings. Until the secret is updated, recordings cannot be saved.
+3. **Merge the Space files.** space/, scripts/deploy_space.py and the voice-recording feature are on the feature/hf-space-backend branch, not yet on main.
 
 ## 9. Risks and limitations
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| The Space sleeps after a couple of days without traffic | The first visit afterwards waits while it wakes and loads models | Show a "waking up, please wait" message in the web app instead of an error (section 10). |
-| Temporary storage | Stats and ratings reset on every restart | Move them to persistent storage (section 10). |
+| The Space sleeps after a couple of days without traffic | The first visit afterwards waits while it wakes and loads models | Show a "waking up, please wait" message in the web app instead of an error (section 11). |
+| Temporary storage | Stats and ratings reset on every restart | Move them to persistent storage (section 11). |
 | Open API | Anyone who finds the address can use it. There is no login or rate limit, and Gradio's CORS handling accepts every website, so the API cannot be limited to the Vercel site | Add rate limiting; watch usage. |
 | Relies on ZeroGPU and Gradio internals | The unused GPU function, ssr_mode=False and attaching routes to Gradio's server work today, but a Gradio or ZeroGPU update could break them | Gradio (6.28.0) and PyTorch (2.13.0) are pinned. Test locally before changing versions, and check the Space logs after each deploy. |
-| Hugging Face policy changes | Docker and CPU Basic became paid during this work; ZeroGPU could change too. Free ZeroGPU hosting requires a verified email and an account older than 30 days, and allows at most 2 ZeroGPU Spaces. | The Dockerfile from commit d890b0b keeps a paid-host option ready (see section 10). |
+| Hugging Face policy changes | Docker and CPU Basic became paid during this work; ZeroGPU could change too. Free ZeroGPU hosting requires a verified email and an account older than 30 days, and allows at most 2 ZeroGPU Spaces. | The Dockerfile from commit d890b0b keeps a paid-host option ready (see section 11). |
+| Voice recordings are personal data | A person's voice can identify them; the project is responsible for storing the recordings safely and honouring deletion requests | Recordings are anonymous, consented, versioned and kept in a private dataset. Before collecting at scale, check obligations under Kenya's Data Protection Act 2019 (this document is not legal advice), and consider a contact email for deletion requests instead of public GitHub issues. |
 | Non-commercial licences | NLLB-200 and the MMS voice are CC-BY-NC 4.0 | Fine for learning and research; replace these models before any commercial use. |
 
-## 10. What next
+## 10. Update, 30 September 2026: bigger translation model and voice recordings
+
+### 10.1 Translation now runs NLLB-3.3B on the GPU
+
+We measured translation quality on 100 sentences of FLORES-200 (Meta's professionally translated test set, which includes Kamba), scoring with chrF++ (higher is better):
+
+| Kikamba to English | chrF++ | BLEU | Time per sentence |
+|---|---|---|---|
+| NLLB-600M (original) | 34.0 | 13.6 | about 2.4 s |
+| NLLB-200-distilled-1.3B on CPU | 37.5 | 16.0 | about 2.5 s |
+| **NLLB-3.3B on the ZeroGPU GPU (live)** | **38.1** | **16.4** | **about 0.9 s** |
+
+English to Kikamba barely changed between models (chrF++ 29.7 to 30.5). Two community fine-tunes of the 600M model (KnoxDevelopers LoRA adapters) scored slightly worse than the original, so they were not used.
+
+How it is set up:
+
+- The Space setting NLLB_GPU_MODEL_ID=facebook/nllb-200-3.3B makes space/server.py load that model onto the GPU at startup, in half precision (about 7 GB).
+- Calls from the website carry no visitor token, so ZeroGPU charges them all to one daily GPU quota shared by the whole Space. We confirmed this in the spaces package source: a token-less request that runs out of quota fails with "Space app has reached its GPU limit".
+- So translation falls back automatically to NLLB-200-distilled-1.3B on the CPU (the NLLB_MODEL_ID setting) whenever the GPU call fails. The fallback model loads on first use, to save memory. 100 translations in a row all ran on the GPU, so the quota comfortably covers testing; heavy traffic will reach the fallback.
+- /translate responses now include a model field naming the model that answered, so fallbacks are visible.
+
+Quality is still well short of reliable. The larger model mainly buys speed and some better word choices; a Kikamba speaker's review remains the real test.
+
+### 10.2 Collecting recordings for a real Kamba voice
+
+No Kamba text-to-speech model exists. We compared Meta's voices for Kamba's relatives by having each read the same Kikamba sentences and checking how much the Kamba speech-to-text model misheard: Swahili 8%, Kikuyu 17%, Tharaka 22%. The Swahili voice stays for now. An authentic Kamba voice has to be trained on Kamba recordings, so the website now collects them:
+
+- **A /contribute page** (linked from the home page and the player). Speakers agree to a plain-language consent statement, confirm they are 18+ and fluent, give their dialect (gender and age optional), then read sentences aloud, listen back, and submit, re-record or skip.
+- **The sentences:** 1,044 Kamba sentences from FLORES-200 (CC-BY-SA 4.0), filtered to 40 to 140 characters with no digits or quotes (app/data/kikamba_prompts.tsv, built by scripts/build_prompts.py).
+- **Storage:** recordings are converted to 16 kHz mono WAV and pushed every 5 minutes to the private dataset huggingface.co/datasets/lawmaluki/kamba-voice-recordings, in Hugging Face's audiofolder layout (audio files plus metadata.jsonl with the sentence, anonymous speaker ID, dialect, optional gender and age range, duration and consent version). Each Space start writes to its own folder, so a restart never overwrites earlier uploads.
+- **Safeguards:** consent is required and versioned, contributors are anonymous (a random ID, no names or contact details), recordings must be 1 to 20 seconds and not silent, and each connection is limited to 120 uploads an hour. Contributors can ask for deletion by opening a GitHub issue with their ID.
+
+A voice model typically needs one to three hours of clean speech from a speaker, so this will take many contributors or a few dedicated ones.
+
+## 11. What next
 
 ### Short term
 
@@ -212,11 +247,12 @@ The Space rebuilds and restarts in about two minutes. Build and run logs are at 
 ### Medium term
 
 - **Measure translation quality.** Build a test set of 30 to 50 sentences with Kikamba translations checked by a speaker, and score the current model against it. The ratings log (data/feedback.jsonl) is a good source of sentences that went wrong. Once ratings persist, review them regularly.
-- **Try a larger translation model.** facebook/nllb-200-distilled-1.3B usually translates better. The Space has the memory for it; measure speed and quality against the test set before switching.
+- **Grow the voice dataset, then train a Kamba voice.** Share the /contribute page with Kikamba speakers. Once there are one to three hours of clean speech from consistent speakers, fine-tune Meta's MMS voice (VITS) on it with a rented GPU, and compare it with the Swahili voice.
+- **Watch GPU fallbacks.** The model field in /translate responses and the Space logs show how often translation falls back to the CPU model. If it happens often, consider Hugging Face PRO (more ZeroGPU quota) or paid hardware.
 - **Automate deploys.** A GitHub Action could run scripts/deploy_space.py whenever app/ or space/ changes on main, so the backend never falls out of step with the code.
 
 ### When usage grows
 
 - **Move to paid, always-on hosting.** The Dockerfile and configurable CORS on the feature/mobile-and-deploy branch (commit d890b0b) run the same backend on Render, Railway, Fly.io or a VPS with about 8 GB of memory. Quantizing the translation model could let it fit a cheaper 4 GB plan.
-- **Consider the GPU for heavier models** only once visitors can log in with Hugging Face, since ZeroGPU quota is charged per visitor.
+- **Give visitors their own GPU quota** by letting them sign in with Hugging Face, so heavy use by one visitor doesn't use up the shared pool.
 - **Replace the non-commercial models** before any commercial use.

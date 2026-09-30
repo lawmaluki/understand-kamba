@@ -121,6 +121,8 @@ The first translation, transcription and playback each download and load a model
 
 **Dialect.** The cards under Dialects & voices change the title and tag shown with the translation. The translation itself is the same for every dialect.
 
+**Record your voice (/contribute).** Kikamba speakers can help build a real Kamba voice. The page is linked from the home page ("Record your voice") and from the note under the play button. Contributors read a short explanation of how recordings are used, choose their dialect (gender and age are optional), confirm they are 18+ and fluent, and agree. They then see one Kikamba sentence at a time: record (up to 20 seconds), listen back, then submit, re-record or skip. The browser remembers the anonymous contributor ID and progress; "Ask to delete my recordings" opens a GitHub issue with that ID.
+
 ## 6. Configuration reference
 
 Backend settings are read from environment variables, normally supplied through .env.
@@ -140,7 +142,12 @@ Backend settings are read from environment variables, normally supplied through 
 | TTS_MODEL_ID | facebook/mms-tts-swh | Voice model; any MMS/VITS text-to-speech model works |
 | UPLOAD_MAX_MB | 25 | Largest audio upload accepted |
 | TEMP_DIR | system temp folder/kam-backend | Where uploads are converted; files are deleted after each request |
-| DATA_DIR | data/ in the project folder | Where stats.json and feedback.jsonl are kept |
+| DATA_DIR | data/ in the project folder | Where stats.json, feedback.jsonl and voice recordings (data/voice/) are kept |
+| VOICE_DATASET_REPO | (empty) | Hugging Face dataset that contributed recordings are pushed to every 5 minutes, e.g. lawmaluki/kamba-voice-recordings. Empty keeps recordings local only. Needs HF_TOKEN with write access. |
+| VOICE_MAX_SECONDS | 20 | Longest recording accepted |
+| VOICE_UPLOAD_MAX_MB | 5 | Largest recording upload accepted |
+| VOICE_UPLOADS_PER_HOUR | 120 | Recordings accepted per connection per hour |
+| NLLB_GPU_MODEL_ID | (empty) | Hugging Face Space only (space/server.py): translation model run on the ZeroGPU GPU, e.g. facebook/nllb-200-3.3B. NLLB_MODEL_ID becomes the CPU fallback. |
 
 Web app setting (web/.env.local):
 
@@ -167,10 +174,11 @@ direction is one of: en_to_kam, kam_to_en, or kam_to_sw_en (Kikamba to both Swah
 Response:
 
 ```
-{ "text": "...", "translation_kam": "...", "translation_en": null, "translation_sw": null }
+{ "text": "...", "translation_kam": "...", "translation_en": null, "translation_sw": null,
+  "model": "facebook/nllb-200-3.3B" }
 ```
 
-Only the fields for the requested direction are filled in.
+Only the fields for the requested direction are filled in. model names the model that produced the translation; on the Hugging Face Space it shows whether the GPU model or the CPU fallback answered.
 
 Errors: 400 if the text is empty; 422 if it is longer than MAX_TRANSLATE_CHARS; 503 if the Anthropic backend is selected but not configured; 500 if the model fails.
 
@@ -226,6 +234,32 @@ Records a rating and returns the updated stats.
 
 rating is up or down. Errors: 422 for any other value.
 
+### GET /voice/prompts
+
+The Kikamba sentences contributors read aloud (1,044 from FLORES-200), plus the current consent version and recording limit.
+
+```
+{ "prompts": [{ "id": "flores-dev-12", "text": "..." }], "consent_version": "2026-09-30", "max_seconds": 20 }
+```
+
+### POST /voice/recordings
+
+Stores one contributed recording. Multipart form data:
+
+| Field | Required | Notes |
+|---|---|---|
+| file | yes | The recording (any format ffmpeg reads, such as the browser's webm) |
+| prompt_id | yes | The id of the sentence read, from /voice/prompts |
+| speaker_id | yes | The contributor's anonymous UUID |
+| dialect | yes | machakos, kitui, makueni or other |
+| consent | yes | Must be true |
+| gender | no | female, male, other, or empty |
+| age_range | no | 18-29, 30-44, 45-59, 60+, or empty |
+
+The recording is converted to 16 kHz mono WAV and stored with a metadata row (the sentence text is taken from the server's list, not the client). Response: {"ok": true, "duration_seconds": 5.7}.
+
+Errors: 413 if the upload is over VOICE_UPLOAD_MAX_MB; 422 with a readable message if consent is missing, the details are invalid, or the recording is under 1 second, over VOICE_MAX_SECONDS or silent; 429 past VOICE_UPLOADS_PER_HOUR.
+
 ### GET /health
 
 Returns {"status": "ok"}.
@@ -242,6 +276,8 @@ Meta's No Language Left Behind model includes Kamba (code kam_Latn), but Kamba h
 
 Known issue: some words appear to be wrong. For example, "Did you sleep well?" came out as "We nĩwasomie nesa?", where nĩwasomie may mean "did you read". A Kikamba speaker should review output before it is relied on.
 
+Model sizes, scored on 100 FLORES-200 sentences, Kikamba to English (chrF++, higher is better): 600M 34.0, distilled 1.3B 37.5, 3.3B 38.1. English to Kikamba stays around 30 for all three. The local default is the 600M model; the hosted backend runs 3.3B on the Space's GPU with 1.3B as its CPU fallback (see docs/BACKEND-HOSTING-MIGRATION.md, section 10).
+
 ### Speech recognition: w2v-BERT Kamba
 
 A community fine-tune of Meta's w2v-BERT 2.0 published by Farmerline. Its model card reports a 30% word error rate and 7% character error rate, on a test set that is not described. In testing, words were mostly recognisable but sometimes merged or misspelled.
@@ -250,11 +286,11 @@ A community fine-tune of Meta's w2v-BERT 2.0 published by Farmerline. Its model 
 
 No working Kikamba voice model exists publicly. The only one found (Musembi/speecht5-tts-kamba) has corrupted weights and outputs silence. The Swahili voice was chosen instead because Swahili spelling is close to Kikamba: when its Kikamba output was transcribed by the Kamba speech model, the text came back almost word for word. Limitations: Swahili accent and intonation, and the vowels ĩ and ũ are pronounced as plain i and u.
 
-To switch voices later, set TTS_MODEL_ID to any MMS/VITS model, for example a future facebook/mms-tts-kam.
+To switch voices later, set TTS_MODEL_ID to any MMS/VITS model, for example a future facebook/mms-tts-kam. Meta's Kikuyu (mms-tts-kik) and Tharaka (mms-tts-thk) voices, both related languages, were also tried; the Kamba speech model misheard 17% and 22% of characters from them, against 8% for Swahili. The /contribute page collects the recordings needed to train a genuine Kamba voice.
 
 ### Measuring accuracy
 
-The most useful next step is a test set: 30 to 50 typical English sentences with Kikamba translations written by a speaker. Scoring each model against it gives a real accuracy figure and shows whether a larger model (NLLB 1.3B) or the Anthropic backend is worth using. The ratings log in data/feedback.jsonl is a good source of sentences that went wrong.
+FLORES-200 (news-style sentences with professional Kamba translations) gives an objective score and was used to compare model sizes above. It does not reflect everyday conversation, so the most useful next step is a second test set: 30 to 50 typical sentences with Kikamba translations written by a speaker. The ratings log in data/feedback.jsonl is a good source of sentences that went wrong.
 
 ## 9. Data and privacy
 
@@ -264,6 +300,8 @@ The most useful next step is a test set: 30 to 50 typical English sentences with
 | Translation count and rating totals | data/stats.json | Until deleted |
 | Each rating with its source text and translation | data/feedback.jsonl | Until deleted |
 | Saved translations | The browser's localStorage | Until removed in the app or browser data is cleared |
+| Contributed voice recordings and their metadata (sentence, anonymous ID, dialect, optional gender and age range) | data/voice/ locally; on the hosted backend, the private dataset lawmaluki/kamba-voice-recordings | Until deleted, for example on the contributor's request |
+| Contributor ID, details and progress | The contributor's browser (localStorage) | Until browser data is cleared |
 | Models | ~/.cache/huggingface/hub | Until deleted |
 
 Text and audio are not sent to any outside service with the default settings. If TRANSLATION_BACKEND is set to anthropic, the text being translated is sent to the Anthropic API.
@@ -283,16 +321,23 @@ understand-kamba/
     audio.py        ffmpeg conversion
     downloader.py   audio from video links (yt-dlp)
     stats.py        translation count and ratings
+    voice.py        contributed voice recordings
+    data/           kikamba_prompts.tsv (sentences to read aloud)
   web/
-    src/app/        page layout, global styles, colour tokens
+    src/app/        home page, /contribute page, global styles, colour tokens
     src/components/translator/
                     StudioCard (state and wiring), StudioHeader,
                     ContentArea, VoiceInput, AudioPlayer,
                     FooterControls, DialectSelector, SavedTranslations
-    src/lib/        api.ts (backend calls), dialects.ts,
-                    samples.ts, saved.ts (saved translations store)
+    src/components/contribute/
+                    ContributeCta (home-page invitation), ContributeStudio,
+                    ConsentStep, RecordingStep
+    src/lib/        api.ts (backend calls), dialects.ts, samples.ts,
+                    saved.ts, contributor.ts (browser stores),
+                    useRecorder.ts (microphone recording)
+  space/            Hugging Face Space entry point and config
   frontend/         older static interface served at localhost:8000
-  scripts/          standalone model tests
+  scripts/          model tests, deploy_space.py, build_prompts.py
   docs/             this documentation
   data/             stats and ratings (created on first use)
   .env.example      configuration template

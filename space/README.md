@@ -17,14 +17,28 @@ short_description: Kikamba translation, speech-to-text and voice API
 Backend for the [Understand Kamba](https://understand-kamba.vercel.app) English ⇄ Kikamba
 translator. Source: https://github.com/lawmaluki/understand-kamba
 
-| Endpoint | Does |
-|---|---|
-| `POST /translate` | English ⇄ Kikamba (Meta NLLB-200) |
-| `POST /transcribe` | Kikamba speech → text (FarmerlineML/w2v-bert-2.0_kamba) |
-| `POST /synthesize` | Kikamba text → speech (Meta MMS Swahili voice) |
-| `GET /stats`, `POST /feedback` | Usage counts and ratings |
+| Endpoint | Does | Model |
+|---|---|---|
+| `POST /translate` | English ⇄ Kikamba; the response's `model` field says which model answered | `facebook/nllb-200-3.3B` on ZeroGPU; falls back to `facebook/nllb-200-distilled-1.3B` on CPU when the GPU quota is used up |
+| `POST /transcribe` | Kikamba speech → text | `FarmerlineML/w2v-bert-2.0_kamba` (CPU) |
+| `POST /synthesize` | Kikamba text → speech | `facebook/mms-tts-swh`, a Swahili voice (CPU) |
+| `GET /voice/prompts`, `POST /voice/recordings` | Speakers contribute Kikamba recordings for a future Kamba voice | — |
+| `GET /stats`, `POST /feedback` | Usage counts and ratings | — |
 
-Interactive docs: `/docs`. Models run on CPU and load in the background after each start,
-so the first requests after a restart are slow. Stats reset when the Space restarts.
+Interactive docs: `/docs`.
 
-The models are licensed CC-BY-NC 4.0 (non-commercial use only).
+## Configuration (Space settings)
+
+| Variable | Value | Purpose |
+|---|---|---|
+| `NLLB_GPU_MODEL_ID` | `facebook/nllb-200-3.3B` | Translation model run on the GPU. Remove to translate on CPU only. |
+| `NLLB_MODEL_ID` | `facebook/nllb-200-distilled-1.3B` | CPU translation model (fallback when the GPU can't be used). |
+| `VOICE_DATASET_REPO` | `lawmaluki/kamba-voice-recordings` | Private dataset that contributed recordings are pushed to every 5 minutes. |
+| `HF_TOKEN` (secret) | a write token | Lets the Space push recordings to that dataset. |
+
+API calls from the website carry no visitor token, so ZeroGPU charges them to one daily GPU
+quota shared by the whole Space. When it runs out, translations continue on the CPU model.
+
+Models load in the background after each start, so the first requests after a restart are
+slow. Stats reset when the Space restarts. The models are licensed CC-BY-NC 4.0
+(non-commercial use only).
