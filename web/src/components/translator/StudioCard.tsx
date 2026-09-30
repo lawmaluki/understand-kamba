@@ -7,6 +7,7 @@ import ContentArea from "./ContentArea";
 import DialectSelector from "./DialectSelector";
 import FooterControls, { type Rating } from "./FooterControls";
 import SavedTranslations from "./SavedTranslations";
+import ContributeCta from "@/components/contribute/ContributeCta";
 import { getStats, sendFeedback, translateText, type Direction, type Stats } from "@/lib/api";
 import { DIALECTS } from "@/lib/dialects";
 import { SAMPLE_SENTENCES } from "@/lib/samples";
@@ -149,6 +150,7 @@ export default function StudioCard() {
       </div>
 
       <DialectSelector selectedId={dialectId} onSelect={setDialectId} />
+      <ContributeCta />
       <SavedTranslations />
 
       <p className="mt-12 text-xs text-neutral-400">

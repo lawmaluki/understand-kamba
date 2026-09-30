@@ -1,16 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2, Mic, Square, Upload } from "lucide-react";
 import { MAX_RECORDING_SECONDS, transcribeAudio } from "@/lib/api";
-
-type Status = "idle" | "recording" | "transcribing";
-
-function extensionFor(mimeType: string) {
-  if (mimeType.includes("mp4")) return "m4a";
-  if (mimeType.includes("ogg")) return "ogg";
-  return "webm";
-}
+import { useRecorder } from "@/lib/useRecorder";
 
 interface VoiceInputProps {
   /** Called with the Kikamba transcript of the recording or uploaded file. */
@@ -19,31 +12,11 @@ interface VoiceInputProps {
 }
 
 export default function VoiceInput({ onTranscript, onError }: VoiceInputProps) {
-  const [status, setStatus] = useState<Status>("idle");
-  const [seconds, setSeconds] = useState(0);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  function stopTimer() {
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = null;
-  }
-
-  useEffect(() => {
-    return () => {
-      stopTimer();
-      const rec = recorderRef.current;
-      if (rec && rec.state !== "inactive") {
-        rec.onstop = null; // unmounting: don't transcribe
-        rec.stop();
-        rec.stream.getTracks().forEach((t) => t.stop());
-      }
-    };
-  }, []);
-
   async function transcribe(blob: Blob, filename: string) {
-    setStatus("transcribing");
+    setTranscribing(true);
     try {
       const text = await transcribeAudio(blob, filename);
       if (text) onTranscript(text);
@@ -51,43 +24,20 @@ export default function VoiceInput({ onTranscript, onError }: VoiceInputProps) {
     } catch (err) {
       onError(err instanceof Error ? err.message : "Transcription failed.");
     } finally {
-      setStatus("idle");
+      setTranscribing(false);
     }
   }
 
-  async function startRecording() {
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      onError("Microphone access was blocked. Allow it in your browser to record.");
-      return;
-    }
-    const recorder = new MediaRecorder(stream);
-    const chunks: Blob[] = [];
-    recorder.ondataavailable = (e) => chunks.push(e.data);
-    recorder.onstop = () => {
-      stopTimer();
-      stream.getTracks().forEach((t) => t.stop());
-      const type = recorder.mimeType || "audio/webm";
-      void transcribe(new Blob(chunks, { type }), `recording.${extensionFor(type)}`);
-    };
-    recorderRef.current = recorder;
-    recorder.start();
-    setSeconds(0);
-    setStatus("recording");
-    const startedAt = Date.now();
-    timerRef.current = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-      setSeconds(elapsed);
-      if (elapsed >= MAX_RECORDING_SECONDS) recorder.stop();
-    }, 250);
-  }
+  const recorder = useRecorder({
+    maxSeconds: MAX_RECORDING_SECONDS,
+    onRecorded: (blob, filename) => void transcribe(blob, filename),
+    onError,
+  });
 
   const buttonClass =
     "inline-flex h-10 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-butter-500 disabled:opacity-40 sm:h-8 sm:px-2 sm:text-xs";
 
-  if (status === "transcribing") {
+  if (transcribing) {
     return (
       <span className="inline-flex h-10 items-center gap-1.5 px-2.5 text-sm text-neutral-500 sm:h-8 sm:px-2 sm:text-xs">
         <Loader2 className="h-4 w-4 animate-spin sm:h-3.5 sm:w-3.5" aria-hidden />
@@ -96,18 +46,18 @@ export default function VoiceInput({ onTranscript, onError }: VoiceInputProps) {
     );
   }
 
-  if (status === "recording") {
+  if (recorder.recording) {
     return (
       <button
         type="button"
-        onClick={() => recorderRef.current?.stop()}
+        onClick={recorder.stop}
         className={`${buttonClass} bg-red-50 text-red-700 hover:bg-red-100`}
       >
         <span className="relative flex h-2.5 w-2.5" aria-hidden>
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
           <Square className="relative h-2.5 w-2.5" fill="currentColor" />
         </span>
-        Stop · {seconds}s
+        Stop · {recorder.seconds}s
       </button>
     );
   }
@@ -116,7 +66,7 @@ export default function VoiceInput({ onTranscript, onError }: VoiceInputProps) {
     <>
       <button
         type="button"
-        onClick={startRecording}
+        onClick={recorder.start}
         title="Speak Kikamba to fill in the text"
         className={`${buttonClass} text-butter-700 hover:bg-butter-100`}
       >

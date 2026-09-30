@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Loader2, Pause, Play } from "lucide-react";
 import { synthesizeSpeech } from "@/lib/api";
 
@@ -136,7 +137,10 @@ export default function AudioPlayer({ text, onError }: AudioPlayerProps) {
         </span>
       </div>
       <p className="mt-1.5 text-[11px] text-neutral-400">
-        Read by a Swahili voice &mdash; no Kikamba voice model exists yet.
+        Read by a Swahili voice &mdash; no Kikamba voice exists yet.{" "}
+        <Link href="/contribute" className="font-medium text-butter-700 underline-offset-2 hover:underline">
+          Help build one
+        </Link>
       </p>
     </div>
   );

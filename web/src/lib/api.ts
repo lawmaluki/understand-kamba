@@ -66,6 +66,47 @@ export async function getStats(): Promise<Stats> {
   return (await request("/stats")).json();
 }
 
+export interface VoicePrompt {
+  id: string;
+  text: string;
+}
+
+export interface VoicePrompts {
+  prompts: VoicePrompt[];
+  consent_version: string;
+  max_seconds: number;
+}
+
+/** Kikamba sentences for voice contributors to read aloud. */
+export async function getVoicePrompts(): Promise<VoicePrompts> {
+  return (await request("/voice/prompts")).json();
+}
+
+export interface SpeakerDetails {
+  speakerId: string;
+  dialect: string;
+  gender: string;
+  ageRange: string;
+}
+
+/** Upload one contributed recording of a prompt sentence. */
+export async function submitVoiceRecording(
+  audio: Blob,
+  filename: string,
+  promptId: string,
+  speaker: SpeakerDetails
+): Promise<void> {
+  const form = new FormData();
+  form.append("file", audio, filename);
+  form.append("prompt_id", promptId);
+  form.append("speaker_id", speaker.speakerId);
+  form.append("dialect", speaker.dialect);
+  form.append("gender", speaker.gender);
+  form.append("age_range", speaker.ageRange);
+  form.append("consent", "true");
+  await request("/voice/recordings", { method: "POST", body: form });
+}
+
 export async function sendFeedback(feedback: {
   rating: "up" | "down";
   direction: Direction;
