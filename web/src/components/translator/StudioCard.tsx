@@ -109,32 +109,40 @@ export default function StudioCard() {
 
   return (
     <div className="w-full">
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_24px_60px_-30px_rgba(140,107,18,0.22)]">
-        <StudioHeader
-          dialectLabel={dialect.label}
-          stats={stats}
-          direction={direction}
-          onDirectionChange={handleDirectionChange}
-        />
-        <ContentArea
-          direction={direction}
-          dialectShort={dialect.short}
-          sourceText={sourceText}
-          onSourceTextChange={setSourceText}
-          translatedText={result?.translation ?? ""}
-          isTranslating={isTranslating}
-          error={error}
-          onTranslate={handleTranslate}
-          onNotice={showNotice}
-        />
-        <FooterControls
-          direction={direction}
-          source={result?.source ?? ""}
-          translation={result?.translation ?? ""}
-          rating={result?.rating ?? null}
-          onRate={handleRate}
-          onNotice={showNotice}
-        />
+      {/* Butter frame > cream rim > card, credit line in the bottom edge. */}
+      <div className="studio-frame rounded-[26px] px-1.5 pt-1.5 sm:rounded-[30px] sm:px-2 sm:pt-2">
+        <div className="rounded-[21px] bg-[#fbfaf5]/90 p-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),inset_0_0_0_1px_rgba(255,255,255,0.9)] sm:rounded-[24px] sm:p-2">
+          <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+            <StudioHeader
+              dialectLabel={dialect.label}
+              stats={stats}
+              direction={direction}
+              onDirectionChange={handleDirectionChange}
+            />
+            <ContentArea
+              direction={direction}
+              dialectShort={dialect.short}
+              sourceText={sourceText}
+              onSourceTextChange={setSourceText}
+              translatedText={result?.translation ?? ""}
+              isTranslating={isTranslating}
+              error={error}
+              onTranslate={handleTranslate}
+              onNotice={showNotice}
+            />
+            <FooterControls
+              direction={direction}
+              source={result?.source ?? ""}
+              translation={result?.translation ?? ""}
+              rating={result?.rating ?? null}
+              onRate={handleRate}
+              onNotice={showNotice}
+            />
+          </div>
+        </div>
+        <p className="py-3 text-center text-sm font-semibold text-neutral-900 sm:py-3.5">
+          Powered by Meta NLLB-200
+        </p>
       </div>
 
       {/* Fixed to the bottom of the screen so it's visible wherever you are on the page. */}
