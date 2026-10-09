@@ -26,8 +26,9 @@ export default function ContributePage() {
             Lend your voice to Kikamba.
           </h1>
           <p className="mt-3 text-[15px] leading-relaxed text-neutral-500 sm:text-base">
-            Translations are read aloud by a Swahili voice today, because no Kikamba voice exists.
-            A few minutes of Kikamba speakers reading sentences aloud is what it takes to build one.
+            Translations are read aloud by an AI voice cloned from just two Kamba speakers.
+            Recordings from many more speakers will help build an open Kikamba voice that sounds
+            like the whole community.
           </p>
         </div>
 

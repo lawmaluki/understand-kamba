@@ -17,11 +17,11 @@ export default function ContributeCta() {
         </div>
         <div>
           <h2 id="contribute-heading" className="text-lg font-medium text-neutral-900">
-            Speak Kikamba? Help build a real Kamba voice.
+            Speak Kikamba? Help build an open Kamba voice.
           </h2>
           <p className="mt-1 max-w-xl text-sm leading-relaxed text-neutral-600">
-            Today&apos;s voice is Swahili. Read a few Kikamba sentences aloud and your recordings
-            will help train a voice that truly sounds Kamba.
+            Today&apos;s AI voice is cloned from just two Kamba speakers. Read a few Kikamba sentences
+            aloud and your recordings will help build a voice that represents the whole community.
           </p>
         </div>
       </div>

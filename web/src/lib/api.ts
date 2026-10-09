@@ -57,9 +57,18 @@ export async function transcribeAudio(audio: Blob, filename: string): Promise<st
   return data.transcript ?? "";
 }
 
-/** Kikamba text -> WAV audio. */
-export async function synthesizeSpeech(text: string): Promise<Blob> {
-  return (await postJson("/synthesize", { text })).blob();
+export type Voice = "female" | "male";
+
+/** Kikamba text -> WAV audio, plus the id of the model that spoke (the Kamba
+ * voice on the hosted backend, or the Swahili fallback). */
+export async function synthesizeSpeech(text: string, voice: Voice): Promise<{ audio: Blob; model: string }> {
+  const resp = await postJson("/synthesize", { text, voice });
+  return { audio: await resp.blob(), model: resp.headers.get("X-Voice-Model") ?? "" };
+}
+
+/** True when the backend used its Kamba voice rather than the Swahili fallback. */
+export function isKambaVoice(model: string): boolean {
+  return model.toLowerCase().includes("omnivoice");
 }
 
 export async function getStats(): Promise<Stats> {

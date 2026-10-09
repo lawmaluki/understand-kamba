@@ -1,8 +1,8 @@
 "use client";
 
-import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Languages, Loader2, Shuffle, X } from "lucide-react";
-import { MAX_TRANSLATE_CHARS, type Direction } from "@/lib/api";
+import { MAX_TRANSLATE_CHARS, type Direction, type Voice } from "@/lib/api";
 import { pickSample } from "@/lib/samples";
 import AudioPlayer from "./AudioPlayer";
 import VoiceInput from "./VoiceInput";
@@ -36,6 +36,7 @@ export default function ContentArea({
   const charCount = sourceText.length;
   const overLimit = charCount > MAX_TRANSLATE_CHARS;
   const canTranslate = !isTranslating && !!sourceText.trim() && !overLimit;
+  const [voice, setVoice] = useState<Voice>("female"); // kept across translations
   const isMac = useSyncExternalStore(
     noopSubscribe,
     () => /Mac|iPhone|iPad/.test(navigator.platform),
@@ -180,7 +181,15 @@ export default function ContentArea({
           {error && <p className="mt-3 text-sm font-medium text-red-600">{error}</p>}
         </div>
 
-        {fromEnglish && <AudioPlayer key={translatedText} text={translatedText} onError={onNotice} />}
+        {fromEnglish && (
+          <AudioPlayer
+            key={`${voice}:${translatedText}`}
+            text={translatedText}
+            voice={voice}
+            onVoiceChange={setVoice}
+            onError={onNotice}
+          />
+        )}
       </div>
     </div>
   );

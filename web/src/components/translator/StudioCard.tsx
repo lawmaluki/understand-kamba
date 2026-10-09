@@ -163,7 +163,8 @@ export default function StudioCard() {
 
       <p className="mt-12 text-xs text-neutral-400">
         Translation by Meta NLLB-200 · Speech recognition by w2v-BERT Kamba (Farmerline) · Voice by
-        Meta MMS Swahili
+        OmniVoice (k2-fsa), cloned from Kamba speakers in Google FLEURS (CC-BY 4.0), with Meta MMS
+        Swahili as a fallback
       </p>
     </div>
   );

@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Loader2, Pause, Play } from "lucide-react";
-import { synthesizeSpeech } from "@/lib/api";
+import { isKambaVoice, synthesizeSpeech, type Voice } from "@/lib/api";
+
+const VOICE_OPTIONS: { id: Voice; label: string }[] = [
+  { id: "female", label: "Woman" },
+  { id: "male", label: "Man" },
+];
 
 const BAR_COUNT = 48;
 const PLACEHOLDER_PEAKS = Array.from({ length: BAR_COUNT }, () => 0.15);
@@ -37,16 +42,19 @@ function formatTime(seconds: number) {
 }
 
 interface AudioPlayerProps {
-  /** Kikamba text to read. Remount (key on the text) to reset for new text. */
+  /** Kikamba text to read. Remount (key on text + voice) to reset for new text or voice. */
   text: string;
+  voice: Voice;
+  onVoiceChange: (voice: Voice) => void;
   onError: (message: string) => void;
 }
 
-export default function AudioPlayer({ text, onError }: AudioPlayerProps) {
+export default function AudioPlayer({ text, voice, onVoiceChange, onError }: AudioPlayerProps) {
   const [status, setStatus] = useState<Status>("idle");
   const [peaks, setPeaks] = useState<number[] | null>(null);
   const [duration, setDuration] = useState(0);
   const [current, setCurrent] = useState(0);
+  const [model, setModel] = useState<string | null>(null); // which model spoke, once loaded
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
 
@@ -58,7 +66,8 @@ export default function AudioPlayer({ text, onError }: AudioPlayerProps) {
   }, []);
 
   async function load(): Promise<HTMLAudioElement> {
-    const blob = await synthesizeSpeech(text);
+    const { audio: blob, model: spokenBy } = await synthesizeSpeech(text, voice);
+    setModel(spokenBy);
     const p = await computePeaks(blob, BAR_COUNT).catch(() => null); // waveform is cosmetic
     const url = URL.createObjectURL(blob);
     urlRef.current = url;
@@ -136,12 +145,38 @@ export default function AudioPlayer({ text, onError }: AudioPlayerProps) {
           {formatTime(current)} / {formatTime(duration)}
         </span>
       </div>
-      <p className="mt-1.5 text-[11px] text-neutral-400">
-        Read by a Swahili voice &mdash; no Kikamba voice exists yet.{" "}
-        <Link href="/contribute" className="font-medium text-butter-700 underline-offset-2 hover:underline">
-          Help build one
-        </Link>
-      </p>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <p className="min-w-0 flex-1 text-[11px] text-neutral-400">
+          {model === null
+            ? "AI Kamba voice."
+            : isKambaVoice(model)
+              ? "AI Kamba voice, cloned from a Kamba speaker."
+              : "The Kamba voice isn't available right now, so a Swahili voice read this."}{" "}
+          <Link href="/contribute" className="font-medium text-butter-700 underline-offset-2 hover:underline">
+            Help it improve
+          </Link>
+        </p>
+        <div role="radiogroup" aria-label="Voice" className="inline-flex shrink-0 rounded-md border border-neutral-200 p-0.5">
+          {VOICE_OPTIONS.map((o) => {
+            const active = voice === o.id;
+            return (
+              <button
+                key={o.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => !active && onVoiceChange(o.id)}
+                disabled={status === "loading"}
+                className={`min-h-9 rounded px-2.5 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-butter-500 sm:min-h-7 ${
+                  active ? "bg-butter-200 text-butter-900" : "text-neutral-500 hover:text-neutral-800"
+                }`}
+              >
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
