@@ -1,5 +1,10 @@
 """
-Kikamba text-to-speech -- read by Meta's MMS Swahili voice (facebook/mms-tts-swh).
+Kikamba text-to-speech.
+
+On the Hugging Face Space the main voice is OmniVoice on the GPU, cloning a
+real Kamba speaker (installed via set_accelerator by space/server.py). This
+module provides the fallback, and the only voice when running locally: Meta's
+MMS Swahili voice (facebook/mms-tts-swh).
 
 There is no working Kikamba voice model: the only community one found
 (Musembi/speecht5-tts-kamba) has NaN weights and outputs silence. Swahili
@@ -47,6 +52,30 @@ def _normalize(text: str) -> str:
     decomposed = unicodedata.normalize("NFD", text)
     plain = "".join(c for c in decomposed if not unicodedata.combining(c))
     return " ".join(plain.replace("’", "'").lower().split())
+
+
+VOICES = ("female", "male")
+
+# Optional GPU voice, installed by space/server.py (OmniVoice cloning a real
+# Kamba speaker): (text, voice) -> WAV bytes. If it raises (e.g. the Space's
+# GPU quota is used up) the Swahili MMS voice reads the text instead.
+_accelerator = None
+_accelerator_name = None
+
+
+def set_accelerator(fn, name: str) -> None:
+    global _accelerator, _accelerator_name
+    _accelerator, _accelerator_name = fn, name
+
+
+def synthesize(text: str, voice: str = "female") -> tuple[bytes, str]:
+    """Returns (WAV bytes, id of the model that spoke)."""
+    if _accelerator is not None:
+        try:
+            return _accelerator(text, voice), _accelerator_name
+        except Exception as e:
+            print(f"[tts] {_accelerator_name} unavailable ({e}); using {settings.tts_model_id}", flush=True)
+    return synthesize_wav(text), settings.tts_model_id
 
 
 def synthesize_wav(text: str) -> bytes:

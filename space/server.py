@@ -13,12 +13,15 @@ ZeroGPU rules this file follows:
 - GPU models are moved to "cuda" at module level (ZeroGPU emulates CUDA
   outside @spaces.GPU functions and attaches a real GPU inside them).
 
-Speech, voice and (by default) translation run on CPU. If NLLB_GPU_MODEL_ID
-is set (e.g. facebook/nllb-200-3.3B), translation runs that model on the GPU
-and falls back to the CPU model (NLLB_MODEL_ID) whenever the GPU can't be
-used. API calls from the website carry no visitor token, so ZeroGPU charges
-them to one small daily quota shared by the whole Space; once it's used up,
-the CPU model serves until the quota resets.
+Speech-to-text runs on CPU. Two optional GPU models, each with a CPU fallback
+used whenever the GPU can't be (e.g. quota used up):
+- NLLB_GPU_MODEL_ID (e.g. facebook/nllb-200-3.3B) for translation; fallback
+  NLLB_MODEL_ID on CPU.
+- TTS_GPU_MODEL_ID (k2-fsa/OmniVoice) for the voice, cloning the Kamba
+  speakers in app/data/voices; fallback the Swahili MMS voice (TTS_MODEL_ID).
+API calls from the website carry no visitor token, so ZeroGPU charges them
+to one small daily quota shared by the whole Space; once it's used up, the
+CPU fallbacks serve until the quota resets.
 """
 import spaces  # noqa: I001 -- must come before torch is imported
 
@@ -57,6 +60,55 @@ if GPU_MODEL_ID:
 
     translate_mod.set_accelerator(_translate_on_gpu, GPU_MODEL_ID)
     print(f"[startup] translation on GPU: {GPU_MODEL_ID} (CPU fallback loads on first use)", flush=True)
+
+
+TTS_GPU_MODEL_ID = os.getenv("TTS_GPU_MODEL_ID", "")
+VOICES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app", "data", "voices")
+
+if TTS_GPU_MODEL_ID:
+    import io
+
+    import numpy as np
+    import soundfile as sf
+    from omnivoice import OmniVoice
+
+    from app.translate import split_sentences
+
+    _omni = OmniVoice.from_pretrained(TTS_GPU_MODEL_ID)
+    # Clone prompts for the two Kamba reference speakers (app/data/voices), built
+    # on CPU now because real GPU work can only happen inside @spaces.GPU calls.
+    _voice_prompts = {}
+    for _voice in tts.VOICES:
+        _samples, _sr = sf.read(os.path.join(VOICES_DIR, f"kamba_{_voice}.wav"), dtype="float32")
+        with open(os.path.join(VOICES_DIR, f"kamba_{_voice}.txt"), encoding="utf-8") as _f:
+            _ref_text = _f.read().strip()
+        _voice_prompts[_voice] = _omni.create_voice_clone_prompt((torch.from_numpy(_samples).unsqueeze(0), _sr), _ref_text)
+    # Stay in float32: casting the loaded model to float16 makes it output silence
+    # (some of its modules need full precision). 0.6B params is ~2.4 GB on the GPU.
+    _omni = _omni.to("cuda")
+    _SAMPLE_RATE = 24000
+
+    def _speech_duration(sentences: list[str], voice: str) -> int:
+        """GPU seconds to reserve: ZeroGPU only starts a call if this much quota
+        is left, so scale it with the text instead of always asking for a lot."""
+        return min(60, 10 + sum(len(s) for s in sentences) // 15)
+
+    @spaces.GPU(duration=_speech_duration)
+    def _speak_on_gpu(sentences: list[str], voice: str) -> list[np.ndarray]:
+        n = len(sentences)
+        audios = _omni.generate(text=sentences, language=["kam"] * n, voice_clone_prompt=[_voice_prompts[voice]] * n)
+        return [np.asarray(a, dtype=np.float32) for a in audios]
+
+    def _speak(text: str, voice: str) -> bytes:
+        sentences = split_sentences(text) or [text]
+        pause = np.zeros(int(_SAMPLE_RATE * 0.25), dtype=np.float32)
+        pieces = [x for audio in _speak_on_gpu(sentences, voice) for x in (audio, pause)][:-1]
+        buf = io.BytesIO()
+        sf.write(buf, np.concatenate(pieces), _SAMPLE_RATE, format="WAV")
+        return buf.getvalue()
+
+    tts.set_accelerator(_speak, TTS_GPU_MODEL_ID)
+    print(f"[startup] voice on GPU: {TTS_GPU_MODEL_ID} cloning {list(_voice_prompts)} (fallback: Swahili MMS)", flush=True)
 
 
 def _warm_up():

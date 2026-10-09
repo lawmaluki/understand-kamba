@@ -65,6 +65,7 @@ class TranslateResponse(BaseModel):
 
 class SynthesizeRequest(BaseModel):
     text: str = Field(min_length=1, max_length=settings.max_translate_chars)
+    voice: Literal["female", "male"] = "female"  # used by the GPU voice; the fallback has one voice
 
 
 class FeedbackRequest(BaseModel):
@@ -195,12 +196,18 @@ def translate_text(req: TranslateRequest):
 
 @app.post("/synthesize", response_class=Response)
 def synthesize(req: SynthesizeRequest):
-    """Kikamba text -> 16 kHz WAV. Experimental voice; see app/tts.py."""
+    """Kikamba text -> WAV. The X-Voice-Model header names the model that spoke
+    (the GPU Kamba voice or the Swahili fallback); see app/tts.py."""
     try:
-        wav = tts.synthesize_wav(req.text)
+        wav, model = tts.synthesize(req.text, req.voice)
     except Exception as e:
         raise HTTPException(500, f"speech synthesis failed: {e}")
-    return Response(content=wav, media_type="audio/wav")
+    return Response(
+        content=wav,
+        media_type="audio/wav",
+        # Expose-Headers lets the browser read X-Voice-Model on a cross-origin response.
+        headers={"X-Voice-Model": model, "Access-Control-Expose-Headers": "X-Voice-Model"},
+    )
 
 
 @app.get("/stats", response_model=StatsResponse)
