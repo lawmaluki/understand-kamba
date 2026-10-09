@@ -4,7 +4,8 @@ import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  // latin-ext covers Kikamba's ĩ and ũ, so they render in Geist rather than a fallback font.
+  subsets: ["latin", "latin-ext"],
 });
 
 const geistMono = Geist_Mono({

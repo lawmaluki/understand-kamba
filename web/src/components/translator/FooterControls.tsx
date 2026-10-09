@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Bookmark, Check, Copy, Share2, ThumbsDown, ThumbsUp } from "lucide-react";
 import type { Direction } from "@/lib/api";
 import { save } from "@/lib/saved";
+import ShareCardDialog from "./ShareCardDialog";
 
 export type Rating = "up" | "down";
 
@@ -26,8 +27,8 @@ export default function FooterControls({
   onNotice,
 }: FooterControlsProps) {
   const [copied, setCopied] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const hasTranslation = !!translation;
-  const [from, to] = direction === "en_to_kam" ? ["English", "Kikamba"] : ["Kikamba", "English"];
 
   async function handleCopy() {
     try {
@@ -39,23 +40,6 @@ export default function FooterControls({
     }
   }
 
-  async function handleShare() {
-    const text = `${from}: ${source}\n${to}: ${translation}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: `${from} → ${to} translation`, text });
-      } catch {
-        // Share sheet dismissed -- nothing to do.
-      }
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-      onNotice("Copied both texts -- paste them wherever you want to share.");
-    } catch {
-      onNotice("Couldn't copy to clipboard -- your browser may have blocked it.");
-    }
-  }
 
   function handleSave() {
     onNotice(
@@ -80,9 +64,23 @@ export default function FooterControls({
       >
         {copied ? <Check className="h-4 w-4 text-emerald-600" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
       </button>
-      <button type="button" aria-label="Share" onClick={handleShare} disabled={!hasTranslation} className={iconButtonClass}>
+      <button
+        type="button"
+        aria-label="Share as an image"
+        onClick={() => setShareOpen(true)}
+        disabled={!hasTranslation}
+        className={iconButtonClass}
+      >
         <Share2 className="h-4 w-4" aria-hidden />
       </button>
+      <ShareCardDialog
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        direction={direction}
+        source={source}
+        translation={translation}
+        onNotice={onNotice}
+      />
       <button
         type="button"
         aria-label="Save translation"
