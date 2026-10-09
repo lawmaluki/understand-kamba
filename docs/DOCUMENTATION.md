@@ -23,7 +23,7 @@ All models run locally. No paid API or account is needed with the default settin
 |---|---|---|
 | English to Kikamba, Kikamba to English | Meta NLLB-200 (distilled 600M) | Unverified by a Kikamba speaker. Kamba is low-resource in NLLB and some output shows Kikuyu-style grammar. |
 | Kikamba speech to text | FarmerlineML/w2v-bert-2.0_kamba | About 30% word error rate and 7% character error rate on its publisher's own test set. |
-| Read aloud | Meta MMS Swahili voice (facebook/mms-tts-swh) | Clear and intelligible, but with a Swahili accent; ĩ and ũ are read as i and u. |
+| Read aloud | Hosted: OmniVoice (k2-fsa) on the Space's GPU, cloning a Kamba woman or man from Google FLEURS. Local, and fallback: Meta MMS Swahili voice | OmniVoice: Kamba pronunciation including ĩ and ũ; the Kamba speech model misheard about 2 to 6% of characters. Swahili fallback: Swahili accent, ĩ and ũ read as i and u (about 9%). |
 | Usage stats and ratings | Counted by the backend, stored in data/ | Real numbers. |
 | Copy, share, save | In the browser | Saved translations stay in that browser only. |
 | Dialect selection | Label only | All four dialects use the same models, so the output does not change. |
@@ -41,7 +41,7 @@ What happens for each action:
 |---|---|---|
 | Translate | POST /translate | NLLB-200 |
 | Speak or Upload (Kikamba mode) | POST /transcribe?translate=false, then POST /translate | w2v-BERT Kamba, then NLLB-200 |
-| Play | POST /synthesize | MMS Swahili voice |
+| Play | POST /synthesize | OmniVoice Kamba voice (hosted), else MMS Swahili voice |
 | Thumbs up or down | POST /feedback | none |
 | Header stats | GET /stats | none |
 
@@ -148,6 +148,7 @@ Backend settings are read from environment variables, normally supplied through 
 | VOICE_UPLOAD_MAX_MB | 5 | Largest recording upload accepted |
 | VOICE_UPLOADS_PER_HOUR | 120 | Recordings accepted per connection per hour |
 | NLLB_GPU_MODEL_ID | (empty) | Hugging Face Space only (space/server.py): translation model run on the ZeroGPU GPU, e.g. facebook/nllb-200-3.3B. NLLB_MODEL_ID becomes the CPU fallback. |
+| TTS_GPU_MODEL_ID | (empty) | Hugging Face Space only: voice model run on the ZeroGPU GPU, k2-fsa/OmniVoice, cloning the speakers in app/data/voices. TTS_MODEL_ID becomes the fallback. |
 
 Web app setting (web/.env.local):
 
@@ -208,13 +209,15 @@ Errors: 400 if the link cannot be downloaded; 500 if transcription fails.
 
 ### POST /synthesize
 
-Reads Kikamba text aloud. Returns audio/wav (16 kHz mono), not JSON.
+Reads Kikamba text aloud. Returns audio/wav (mono; 24 kHz from OmniVoice, 16 kHz from the Swahili fallback), not JSON.
 
 ```
-{ "text": "Ũnĩ mũseo, mũnyanyawa." }
+{ "text": "Ũnĩ mũseo, mũnyanyawa.", "voice": "female" }
 ```
 
-Errors: 422 if the text is empty or too long; 500 if generation fails.
+voice is female (default) or male. It selects the OmniVoice speaker; the Swahili fallback has only one voice. The X-Voice-Model response header names the model that spoke (k2-fsa/OmniVoice or facebook/mms-tts-swh) and is readable by the website.
+
+Errors: 422 if the text is empty or too long, or voice is anything else; 500 if generation fails.
 
 ### GET /stats
 
@@ -282,9 +285,17 @@ Model sizes, scored on 100 FLORES-200 sentences, Kikamba to English (chrF++, hig
 
 A community fine-tune of Meta's w2v-BERT 2.0 published by Farmerline. Its model card reports a 30% word error rate and 7% character error rate, on a test set that is not described. In testing, words were mostly recognisable but sometimes merged or misspelled.
 
-### Voice: MMS Swahili
+### Voice: OmniVoice cloning Kamba speakers
 
-No working Kikamba voice model exists publicly. The only one found (Musembi/speecht5-tts-kamba) has corrupted weights and outputs silence. The Swahili voice was chosen instead because Swahili spelling is close to Kikamba: when its Kikamba output was transcribed by the Kamba speech model, the text came back almost word for word. Limitations: Swahili accent and intonation, and the vowels ĩ and ũ are pronounced as plain i and u.
+The hosted backend reads Kikamba with OmniVoice (k2-fsa, 2026; model weights CC-BY-NC, code Apache-2.0), a 0.6-billion-parameter text-to-speech model covering 600+ languages. Its training data included 14.7 hours of Kamba, most likely from Google's FLEURS dataset. Its own default voice does not work for Kamba (no recognisable speech on two of five test sentences), so it clones one of two 8-second recordings of real Kamba speakers, a woman and a man, from FLEURS (app/data/voices, CC-BY 4.0). Visitors choose Woman or Man next to the play button.
+
+In our tests the Kamba speech model misheard about 2 to 6% of characters from the cloned voices, against about 9% for the Swahili voice, and ĩ and ũ are pronounced as written. That score may flatter OmniVoice, because the speech model may also have been trained on FLEURS. It runs on the Space's ZeroGPU GPU (about 7 to 9 seconds per request including queueing), in full precision: casting it to float16 made it output silence. When the GPU can't be used, the Swahili voice below reads the text and the player says so.
+
+The FLEURS speakers recorded for research. Before wider public use, consider replacing the reference clips with recordings from Kamba speakers who agree to be the app's voice; see app/data/voices/README.md.
+
+### Fallback voice: MMS Swahili
+
+Before OmniVoice, no working Kikamba voice model was found publicly. The only one found (Musembi/speecht5-tts-kamba) has corrupted weights and outputs silence. The Swahili voice was chosen instead because Swahili spelling is close to Kikamba: when its Kikamba output was transcribed by the Kamba speech model, the text came back almost word for word. Limitations: Swahili accent and intonation, and the vowels ĩ and ũ are pronounced as plain i and u.
 
 To switch voices later, set TTS_MODEL_ID to any MMS/VITS model, for example a future facebook/mms-tts-kam. Meta's Kikuyu (mms-tts-kik) and Tharaka (mms-tts-thk) voices, both related languages, were also tried; the Kamba speech model misheard 17% and 22% of characters from them, against 8% for Swahili. The /contribute page collects the recordings needed to train a genuine Kamba voice.
 

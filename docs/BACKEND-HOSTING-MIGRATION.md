@@ -235,6 +235,19 @@ No Kamba text-to-speech model exists. We compared Meta's voices for Kamba's rela
 
 A voice model typically needs one to three hours of clean speech from a speaker, so this will take many contributors or a few dedicated ones.
 
+### 10.3 Update, 9 October 2026: OmniVoice becomes the main voice
+
+OmniVoice (k2-fsa, April 2026) is a 600-language text-to-speech model whose training data included 14.7 hours of Kamba, most likely from Google FLEURS. Cloning a real Kamba speaker from FLEURS, it beat every voice tested before (characters misheard by the Kamba speech model, everyday sentences): OmniVoice cloned woman 2.0%, cloned man 3.2%, Swahili 8.9%, Kikuyu 18.2%. OmniVoice's own default voice failed on Kamba, so only cloning is used.
+
+How it runs:
+
+- The Space setting TTS_GPU_MODEL_ID=k2-fsa/OmniVoice makes space/server.py load it at startup, build clone prompts for the woman and man clips in app/data/voices on the CPU, and move the model to the GPU in full precision (about 2.4 GB). Casting it to float16 made it output silence.
+- Each /synthesize request generates all its sentences in one GPU call, reserving GPU time in proportion to the text length (10 to 60 seconds) so short texts don't reserve a long slot from the shared quota.
+- When the GPU can't be used, the Swahili MMS voice answers instead. The X-Voice-Model response header names the model that spoke, and the website's player shows "AI Kamba voice" or explains the Swahili fallback. Visitors choose Woman or Man.
+- Live, each request takes about 7 to 9 seconds including ZeroGPU queueing. Translation (NLLB-3.3B) and the voice now draw on the same daily GPU quota.
+
+Caveats: the FLEURS speakers recorded for research rather than to be a product voice, so the clips should be replaced with consenting speakers before wider use (app/data/voices/README.md); OmniVoice's weights are non-commercial (CC-BY-NC); and its accuracy figures may be flattered because the speech model used to score it may also have trained on FLEURS.
+
 ## 11. What next
 
 ### Short term
