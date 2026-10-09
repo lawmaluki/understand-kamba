@@ -25,7 +25,7 @@ All models run locally. No paid API or account is needed with the default settin
 | Kikamba speech to text | FarmerlineML/w2v-bert-2.0_kamba | About 30% word error rate and 7% character error rate on its publisher's own test set. |
 | Read aloud | Hosted: OmniVoice (k2-fsa) on the Space's GPU, cloning a Kamba woman or man from Google FLEURS. Local, and fallback: Meta MMS Swahili voice | OmniVoice: Kamba pronunciation including ĩ and ũ; the Kamba speech model misheard about 2 to 6% of characters. Swahili fallback: Swahili accent, ĩ and ũ read as i and u (about 9%). |
 | Usage stats and ratings | Counted by the backend, stored in data/ | Real numbers. |
-| Copy, share, save | In the browser | Saved translations stay in that browser only. |
+| Copy, share, save | In the browser | Share creates an image card (Post 4:5 or Story 9:16) drawn in the browser. Saved translations stay in that browser only. |
 | Dialect selection | Label only | All four dialects use the same models, so the output does not change. |
 
 ## 3. How it fits together
@@ -49,7 +49,7 @@ Each model loads the first time it is needed, which takes 10 to 30 seconds. Afte
 
 Audio uploads are converted to 16 kHz mono WAV with ffmpeg before transcription and are trimmed to the first 60 seconds. Temporary audio files are deleted as soon as each request finishes.
 
-An older static interface in frontend/ is also served by the backend at http://localhost:8000/. It offers file upload, video-link transcription and Kikamba-to-Swahili/English text translation.
+The backend serves no page of its own: opening http://localhost:8000/ redirects to the interactive API docs. (An older static interface, frontend/, was removed in October 2026; its video-link transcription is still available through POST /transcribe-url but not yet in the web app.)
 
 ## 4. Getting started
 
@@ -117,7 +117,16 @@ The first translation, transcription and playback each download and load a model
 
 **Rate.** Thumbs up or down rates the current translation once. Ratings update the "% rated helpful" figure in the header and are logged with the sentence for later review.
 
-**Copy, share, save.** Copy puts the translation on the clipboard. Share opens your device's share menu, or copies both texts on a computer. Save adds the pair to the Saved translations list below the card; it is kept in this browser only and can be removed with the bin icon.
+**Copy, share, save.** Copy puts the translation on the clipboard. Save adds the pair to the Saved translations list below the card; it is kept in this browser only and can be removed with the bin icon.
+
+**Share as an image.** Share opens "Share this translation" with a preview of a card for social media: the Understand Kamba name, the direction, the original text, the translation in large type, a waveform and the site address, on a pale cream background. Choose **Post 4:5** (1080×1350, for Instagram, Facebook, X and WhatsApp) or **Story 9:16** (1080×1920, for Stories, Status and TikTok). Long text shrinks to fit, and very long text is cut off with "…". Then:
+
+- **Share** sends the image to your phone's share sheet (WhatsApp, Instagram and so on), or Windows' share menu.
+- **Copy image** puts the PNG on the clipboard, for pasting into a post on a computer.
+- **Download** saves it as understand-kamba-translation.png.
+- **Copy text** copies the original, the translation and the site address.
+
+Share and Copy image only appear in browsers that support them. The card is drawn entirely in the browser (web/src/lib/shareCard.ts), so it uses no server or GPU time.
 
 **Dialect.** The cards under Dialects & voices change the title and tag shown with the translation. The translation itself is the same for every dialect.
 
@@ -333,24 +342,28 @@ understand-kamba/
     downloader.py   audio from video links (yt-dlp)
     stats.py        translation count and ratings
     voice.py        contributed voice recordings
-    data/           kikamba_prompts.tsv (sentences to read aloud)
+    data/           kikamba_prompts.tsv (sentences to read aloud),
+                    voices/ (Kamba reference clips for OmniVoice)
   web/
     src/app/        home page, /contribute page, global styles, colour tokens
     src/components/translator/
                     StudioCard (state and wiring), StudioHeader,
                     ContentArea, VoiceInput, AudioPlayer,
-                    FooterControls, DialectSelector, SavedTranslations
+                    FooterControls, ShareCardDialog, DialectSelector,
+                    SavedTranslations
     src/components/contribute/
                     ContributeCta (home-page invitation), ContributeStudio,
                     ConsentStep, RecordingStep
     src/lib/        api.ts (backend calls), dialects.ts, samples.ts,
                     saved.ts, contributor.ts (browser stores),
-                    useRecorder.ts (microphone recording)
+                    useRecorder.ts (microphone recording),
+                    shareCard.ts (draws the share image)
   space/            Hugging Face Space entry point and config
-  frontend/         older static interface served at localhost:8000
-  scripts/          model tests, deploy_space.py, build_prompts.py
+  scripts/          model tests, deploy_space.py, build_prompts.py,
+                    build_pdf.py
   docs/             this documentation
   data/             stats and ratings (created on first use)
+  Dockerfile        backend image for hosts other than the Space (CPU only)
   .env.example      configuration template
   requirements.txt  Python dependencies
 ```

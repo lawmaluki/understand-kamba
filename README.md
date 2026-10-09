@@ -129,6 +129,7 @@ understand-kamba/
 ├── README.md                  # this file
 ├── requirements.txt
 ├── .env.example
+├── Dockerfile                  # backend image for hosts other than the Hugging Face Space (CPU only)
 ├── app/
 │   ├── config.py               # settings from environment variables
 │   ├── asr.py                  # CTC speech model (w2v-BERT Kamba or MMS): audio -> Kikamba text
@@ -139,7 +140,6 @@ understand-kamba/
 │   ├── stats.py                # translation count + ratings, stored in data/
 │   └── main.py                 # FastAPI app (endpoints above)
 ├── data/                       # stats.json + feedback.jsonl (gitignored, created on first use)
-├── frontend/                   # older static UI served by main.py at "/" -- upload, URL, text tabs
 ├── web/                        # Next.js translator UI (see "Web UI")
 │   └── src/
 └── scripts/

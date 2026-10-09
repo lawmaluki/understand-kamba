@@ -17,7 +17,7 @@ from typing import Literal, Optional
 from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from . import asr, audio, downloader, stats, tts, voice
@@ -110,6 +110,13 @@ async def _save_upload(file: UploadFile, limit_mb: int) -> str:
         _remove_quietly(path)
         raise
     return path
+
+
+@app.get("/", include_in_schema=False)
+def root():
+    """The API has no page of its own (the web app is in web/); point visitors at the docs.
+    On the Hugging Face Space, Gradio's page takes "/" first, so this only applies elsewhere."""
+    return RedirectResponse("/docs")
 
 
 @app.get("/health")
@@ -276,10 +283,3 @@ async def voice_recording(
     finally:
         _remove_quietly(src_path)
     return {"ok": True, "duration_seconds": row["duration_seconds"]}
-
-
-# Serves frontend/ at "/" -- registered last so it only catches requests that
-# didn't match an API route above (e.g. GET /, /style.css, /app.js).
-_frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
-if os.path.isdir(_frontend_dir):
-    app.mount("/", StaticFiles(directory=_frontend_dir, html=True), name="frontend")

@@ -197,7 +197,7 @@ The Space rebuilds and restarts in about two minutes. Build and run logs are at 
 | Temporary storage | Stats and ratings reset on every restart | Move them to persistent storage (section 11). |
 | Open API | Anyone who finds the address can use it. There is no login or rate limit, and Gradio's CORS handling accepts every website, so the API cannot be limited to the Vercel site | Add rate limiting; watch usage. |
 | Relies on ZeroGPU and Gradio internals | The unused GPU function, ssr_mode=False and attaching routes to Gradio's server work today, but a Gradio or ZeroGPU update could break them | Gradio (6.28.0) and PyTorch (2.13.0) are pinned. Test locally before changing versions, and check the Space logs after each deploy. |
-| Hugging Face policy changes | Docker and CPU Basic became paid during this work; ZeroGPU could change too. Free ZeroGPU hosting requires a verified email and an account older than 30 days, and allows at most 2 ZeroGPU Spaces. | The Dockerfile from commit d890b0b keeps a paid-host option ready (see section 11). |
+| Hugging Face policy changes | Docker and CPU Basic became paid during this work; ZeroGPU could change too. Free ZeroGPU hosting requires a verified email and an account older than 30 days, and allows at most 2 ZeroGPU Spaces. | The repository's Dockerfile keeps a paid-host option ready (see section 11). |
 | Voice recordings are personal data | A person's voice can identify them; the project is responsible for storing the recordings safely and honouring deletion requests | Recordings are anonymous, consented, versioned and kept in a private dataset. Before collecting at scale, check obligations under Kenya's Data Protection Act 2019 (this document is not legal advice), and consider a contact email for deletion requests instead of public GitHub issues. |
 | Non-commercial licences | NLLB-200 and the MMS voice are CC-BY-NC 4.0 | Fine for learning and research; replace these models before any commercial use. |
 
@@ -266,6 +266,6 @@ Caveats: the FLEURS speakers recorded for research rather than to be a product v
 
 ### When usage grows
 
-- **Move to paid, always-on hosting.** The Dockerfile and configurable CORS on the feature/mobile-and-deploy branch (commit d890b0b) run the same backend on Render, Railway, Fly.io or a VPS with about 8 GB of memory. Quantizing the translation model could let it fit a cheaper 4 GB plan.
+- **Move to paid, always-on hosting.** The repository's Dockerfile runs the backend on Render, Railway, Fly.io or a VPS with about 6 to 8 GB of memory, on CPU only (the GPU models are wired up only for the Space). Quantizing the translation model could let it fit a cheaper 4 GB plan.
 - **Give visitors their own GPU quota** by letting them sign in with Hugging Face, so heavy use by one visitor doesn't use up the shared pool.
 - **Replace the non-commercial models** before any commercial use.
