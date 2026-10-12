@@ -134,6 +134,28 @@ class PairDataset(torch.utils.data.Dataset):
         return self.items[i]
 
 
+def Progress():
+    """Prints a plain progress line (step, loss, time left) every ~2% of training,
+    readable in a notebook where the tqdm bar is hidden."""
+    from transformers import TrainerCallback
+
+    class _Progress(TrainerCallback):
+        def on_train_begin(self, args, state, control, **kw):
+            self.t0, self.every, self.loss = time.time(), max(1, state.max_steps // 50), ""
+
+        def on_log(self, args, state, control, logs=None, **kw):
+            self.loss = round((logs or {}).get("loss", self.loss or 0), 3) if logs and "loss" in logs else self.loss
+
+        def on_step_end(self, args, state, control, **kw):
+            if state.global_step % self.every and state.global_step != state.max_steps:
+                return
+            done = state.global_step / max(1, state.max_steps)
+            left = (time.time() - self.t0) / max(done, 1e-9) * (1 - done)
+            log(f"training {state.global_step}/{state.max_steps} ({done:.0%})  loss {self.loss}  ~{left / 60:.0f} min left")
+
+    return _Progress()
+
+
 def train(model, tok, pairs, args):
     from peft import LoraConfig, get_peft_model
     from transformers import DataCollatorForSeq2Seq, Seq2SeqTrainer, Seq2SeqTrainingArguments
@@ -153,10 +175,11 @@ def train(model, tok, pairs, args):
         args=Seq2SeqTrainingArguments(
             output_dir=os.path.join(args.out, "checkpoints"), per_device_train_batch_size=args.batch,
             gradient_accumulation_steps=args.grad_accum, learning_rate=args.lr, num_train_epochs=args.epochs,
-            warmup_steps=warmup, lr_scheduler_type="cosine", fp16=DEVICE == "cuda", max_steps=args.max_steps, logging_steps=50, save_strategy="no",
+            warmup_steps=warmup, lr_scheduler_type="cosine", fp16=DEVICE == "cuda", max_steps=args.max_steps, logging_steps=10, disable_tqdm=True, save_strategy="no",
             report_to=[], seed=SEED),
         train_dataset=data,
         data_collator=DataCollatorForSeq2Seq(tok, model=model, padding=True),
+        callbacks=[Progress()],
     )
     trainer.train()
     return model.merge_and_unload()
