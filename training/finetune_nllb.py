@@ -29,6 +29,9 @@ import urllib.request
 
 import torch
 
+# Less fragmentation on a 16 GB GPU; must be set before CUDA is first used.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, REPO)
@@ -135,6 +138,8 @@ def train(model, tok, pairs, args):
     from peft import LoraConfig, get_peft_model
     from transformers import DataCollatorForSeq2Seq, Seq2SeqTrainer, Seq2SeqTrainingArguments
 
+    if DEVICE == "cuda":
+        torch.cuda.empty_cache()  # release what the scoring/evaluation steps left behind
     model = get_peft_model(model, LoraConfig(
         r=args.lora_r, lora_alpha=2 * args.lora_r, lora_dropout=0.05, task_type="SEQ_2_SEQ_LM",
         target_modules=["q_proj", "k_proj", "v_proj", "out_proj", "fc1", "fc2"]))
@@ -190,8 +195,8 @@ def main():
     ap.add_argument("--test-stories", type=int, default=10)
     ap.add_argument("--epochs", type=float, default=2)
     ap.add_argument("--lr", type=float, default=2e-4)
-    ap.add_argument("--batch", type=int, default=16)
-    ap.add_argument("--grad-accum", type=int, default=2)
+    ap.add_argument("--batch", type=int, default=4)
+    ap.add_argument("--grad-accum", type=int, default=8)  # effective batch 32
     ap.add_argument("--lora-r", type=int, default=16)
     ap.add_argument("--skip-base-eval", action="store_true")
     ap.add_argument("--max-steps", type=int, default=-1)
