@@ -222,7 +222,13 @@ def main():
     elif not args.skip_base_eval:
         report["base"], _ = evaluate(model, tok, tests, "base")
         json.dump(report["base"], open(base_path, "w", encoding="utf-8"), indent=2)
-    opus_kept = filter_by_alignment(model, tok, opus, args.keep_frac)
+    kept_path = os.path.join(args.out, f"opus_kept_{args.keep_frac}.json")
+    if os.path.exists(kept_path) and not args.smoke:
+        opus_kept = [tuple(p) for p in json.load(open(kept_path, encoding="utf-8"))]
+        log(f"filtered OPUS pairs loaded from {kept_path} ({len(opus_kept):,})")
+    else:
+        opus_kept = filter_by_alignment(model, tok, opus, args.keep_frac)
+        json.dump(opus_kept, open(kept_path, "w", encoding="utf-8"), ensure_ascii=False)
     model = train(model, tok, clean_train * args.clean_repeat + opus_kept, args)
     report["finetuned"], outputs = evaluate(model, tok, tests, "fine-tuned")
 
