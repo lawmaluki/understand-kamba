@@ -70,20 +70,31 @@ def load_data(n_test_stories: int):
 # ---------------------------------------------------------------- alignment scoring
 
 @torch.no_grad()
-def pair_losses(model, tok, pairs, src_lang, tgt_lang, batch=32):
-    """Mean per-token cross-entropy of target given source, per pair."""
-    out = []
+def pair_losses(model, tok, pairs, src_lang, tgt_lang, batch=8):
+    """Mean per-token cross-entropy of target given source, per pair.
+
+    Labels are not passed to the model (it would compute a full-vocabulary fp32 loss
+    for the whole batch at once, which does not fit a 16 GB GPU); the loss is
+    computed here, one sentence at a time, from fp16 logits."""
+    from transformers.models.m2m_100.modeling_m2m_100 import shift_tokens_right
+
+    out = [0.0] * len(pairs)
     tok.src_lang, tok.tgt_lang = src_lang, tgt_lang
-    for i in range(0, len(pairs), batch):
-        src = [p[0] for p in pairs[i:i + batch]]
-        tgt = [p[1] for p in pairs[i:i + batch]]
-        enc = tok(src, text_target=tgt, return_tensors="pt", padding=True, truncation=True, max_length=128).to(DEVICE)
-        labels = enc["labels"].masked_fill(enc["labels"] == tok.pad_token_id, -100)
+    order = sorted(range(len(pairs)), key=lambda i: len(pairs[i][0]) + len(pairs[i][1]))  # less padding
+    for b in range(0, len(order), batch):
+        idx = order[b:b + batch]
+        enc = tok([pairs[i][0] for i in idx], text_target=[pairs[i][1] for i in idx], return_tensors="pt",
+                  padding=True, truncation=True, max_length=128).to(DEVICE)
+        labels = enc["labels"]
+        dec_in = shift_tokens_right(labels, tok.pad_token_id, model.config.decoder_start_token_id)
         with torch.autocast("cuda", dtype=torch.float16, enabled=DEVICE == "cuda"):
-            logits = model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"], labels=labels).logits
-        nll = torch.nn.functional.cross_entropy(logits.float().transpose(1, 2), labels, reduction="none")
-        mask = (labels != -100).float()
-        out += ((nll * mask).sum(1) / mask.sum(1)).tolist()
+            logits = model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"],
+                           decoder_input_ids=dec_in).logits
+        for j, i in enumerate(idx):
+            keep = labels[j] != tok.pad_token_id
+            nll = torch.nn.functional.cross_entropy(logits[j][keep].float(), labels[j][keep])
+            out[i] = nll.item()
+        del logits
     return out
 
 
@@ -201,10 +212,16 @@ def main():
 
     tok = AutoTokenizer.from_pretrained(args.model)
     model = AutoModelForSeq2SeqLM.from_pretrained(args.model).to(DEVICE)
+    model.generation_config.max_length = None  # the app sets max_new_tokens; silences a warning per batch
 
     report = {"args": vars(args)}
-    if not args.skip_base_eval:
+    base_path = os.path.join(args.out, "base_scores.json")
+    if os.path.exists(base_path) and not args.smoke:  # a rerun after a crash skips the 25-minute base evaluation
+        report["base"] = json.load(open(base_path, encoding="utf-8"))
+        log(f"base scores loaded from {base_path}")
+    elif not args.skip_base_eval:
         report["base"], _ = evaluate(model, tok, tests, "base")
+        json.dump(report["base"], open(base_path, "w", encoding="utf-8"), indent=2)
     opus_kept = filter_by_alignment(model, tok, opus, args.keep_frac)
     model = train(model, tok, clean_train * args.clean_repeat + opus_kept, args)
     report["finetuned"], outputs = evaluate(model, tok, tests, "fine-tuned")
