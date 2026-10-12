@@ -1,0 +1,144 @@
+{
+  "generated": "2026-10-09T19:38:17Z",
+  "command": "python.exe eval/asr_eval.py --score",
+  "test_set": "FLEURS kam_ke test",
+  "n_utterances": 827,
+  "references_sha256": "477beedb5f82d1078a4acfe9558d5d9b29066ebc8399ab76ccb3c780a191fefb",
+  "protocol": {
+    "bootstrap_resamples": 2000,
+    "seed": 1234,
+    "ci": "95% bootstrap over items (Bisani & Ney 2004); paired for system comparisons",
+    "environment": {
+      "python": "3.12.10",
+      "numpy": "2.5.3",
+      "platform": "Windows-11-10.0.26200-SP0",
+      "torch": "2.14.0+cpu",
+      "transformers": "5.17.0",
+      "sacrebleu": "2.6.0"
+    },
+    "primary_metric": "CER",
+    "secondary_metric": "WER",
+    "decoding": "greedy CTC",
+    "normalizers": "K0 (NFC, lowercase, punctuation->space; keeps ' and ĩ/ũ); K1 = K0 + drop diacritics"
+  },
+  "systems": {
+    "farmerline": {
+      "K0": {
+        "cer": 0.1425,
+        "cer_ci95": [
+          0.1334,
+          0.151
+        ],
+        "wer": 0.4349,
+        "wer_ci95": [
+          0.4183,
+          0.451
+        ],
+        "cer_female": 0.137,
+        "cer_female_ci95": [
+          0.1262,
+          0.1481
+        ],
+        "n_female": 457,
+        "cer_male": 0.1495,
+        "cer_male_ci95": [
+          0.1359,
+          0.1642
+        ],
+        "n_male": 370
+      },
+      "K1": {
+        "cer": 0.1084,
+        "cer_ci95": [
+          0.1003,
+          0.1167
+        ],
+        "wer": 0.3334,
+        "wer_ci95": [
+          0.3212,
+          0.3449
+        ],
+        "cer_female": 0.1066,
+        "cer_female_ci95": [
+          0.0966,
+          0.1168
+        ],
+        "n_female": 457,
+        "cer_male": 0.1107,
+        "cer_male_ci95": [
+          0.0988,
+          0.1234
+        ],
+        "n_male": 370
+      }
+    },
+    "mms": {
+      "K0": {
+        "cer": 0.1162,
+        "cer_ci95": [
+          0.1112,
+          0.121
+        ],
+        "wer": 0.4332,
+        "wer_ci95": [
+          0.4198,
+          0.4466
+        ],
+        "cer_female": 0.1186,
+        "cer_female_ci95": [
+          0.1114,
+          0.1258
+        ],
+        "n_female": 457,
+        "cer_male": 0.1131,
+        "cer_male_ci95": [
+          0.1063,
+          0.1198
+        ],
+        "n_male": 370
+      },
+      "K1": {
+        "cer": 0.0724,
+        "cer_ci95": [
+          0.0691,
+          0.0759
+        ],
+        "wer": 0.2967,
+        "wer_ci95": [
+          0.2884,
+          0.3057
+        ],
+        "cer_female": 0.0753,
+        "cer_female_ci95": [
+          0.0702,
+          0.0801
+        ],
+        "n_female": 457,
+        "cer_male": 0.0686,
+        "cer_male_ci95": [
+          0.0648,
+          0.073
+        ],
+        "n_male": 370
+      }
+    }
+  },
+  "paired": {
+    "farmerline_vs_mms_K0_cer": {
+      "delta_median": 0.0262566609239836,
+      "delta_ci95": [
+        0.018247607698088922,
+        0.034154227358519106
+      ],
+      "p_value_one_sided": 1.0
+    },
+    "farmerline_vs_mms_K1_cer": {
+      "delta_median": 0.036004867387754914,
+      "delta_ci95": [
+        0.028762993611663342,
+        0.04296630292172963
+      ],
+      "p_value_one_sided": 1.0
+    }
+  }
+}

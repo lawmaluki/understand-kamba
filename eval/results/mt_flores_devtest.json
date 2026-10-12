@@ -1,0 +1,177 @@
+{
+  "generated": "2026-10-09T19:52:59Z",
+  "command": "python.exe eval/mt_score.py",
+  "test_set": "FLORES-200 devtest",
+  "protocol": {
+    "bootstrap_resamples": 2000,
+    "seed": 1234,
+    "ci": "95% bootstrap over items (Bisani & Ney 2004); paired for system comparisons",
+    "environment": {
+      "python": "3.12.10",
+      "numpy": "2.5.3",
+      "platform": "Windows-11-10.0.26200-SP0",
+      "torch": "2.14.0+cpu",
+      "transformers": "5.17.0",
+      "sacrebleu": "2.6.0"
+    },
+    "primary_metric": "chrF++ (sacrebleu CHRF word_order=2)",
+    "secondary_metric": "BLEU (sacrebleu default 13a)",
+    "sacrebleu_bootstrap": "corpus_score(n_bootstrap=2000), SACREBLEU_SEED=1234",
+    "paired_test": "sacrebleu PairedTest, paired bootstrap resampling (test_type='bs', n_samples=2000)",
+    "decoding": "beam 5, no_repeat_ngram_size 4, max_new_tokens = 2 x input + 16, sentence-split as in app/translate.py"
+  },
+  "directions": {
+    "en_to_kam": {
+      "references_sha256": "4ca915187b3fb35c61ad2b45eddd5b8ac85f3d6723ff477c110ff06f55fba1dc",
+      "n": 1012,
+      "tiers": {
+        "T0": {
+          "nllb-600m": {
+            "chrf++": 27.59,
+            "chrf++_ci95": [
+              27.05,
+              28.14
+            ],
+            "bleu": 4.87,
+            "bleu_ci95": [
+              4.34,
+              5.4
+            ],
+            "output_sha256": "9032af2c6f38f5f57d4f647cf7563c2312a58f2b8b351a39a0826697c605164d"
+          },
+          "nllb-1.3b": {
+            "chrf++": 27.97,
+            "chrf++_ci95": [
+              27.41,
+              28.52
+            ],
+            "bleu": 4.95,
+            "bleu_ci95": [
+              4.39,
+              5.51
+            ],
+            "output_sha256": "82ccfea3b77f12065badd42e983cd184d6bb68b1e24d66aef70b0095807ee6ee",
+            "p_vs_baseline": 0.015492253873063468
+          },
+          "nllb-3.3b": {
+            "chrf++": 24.03,
+            "chrf++_ci95": [
+              23.49,
+              24.57
+            ],
+            "bleu": 3.18,
+            "bleu_ci95": [
+              2.7,
+              3.66
+            ],
+            "output_sha256": "87f353cc315fabed5b1f09888c3ea29f8c1e302e7bd42ca005d549f4a9fecd5f",
+            "p_vs_baseline": 0.0004997501249375312,
+            "p_vs_1.3b": 0.0004997501249375312
+          }
+        },
+        "T1": {
+          "nllb-600m": {
+            "chrf++": 35.19,
+            "chrf++_ci95": [
+              34.59,
+              35.79
+            ],
+            "bleu": 7.83,
+            "bleu_ci95": [
+              7.23,
+              8.43
+            ],
+            "output_sha256": "9032af2c6f38f5f57d4f647cf7563c2312a58f2b8b351a39a0826697c605164d"
+          },
+          "nllb-1.3b": {
+            "chrf++": 35.68,
+            "chrf++_ci95": [
+              35.07,
+              36.28
+            ],
+            "bleu": 8.01,
+            "bleu_ci95": [
+              7.37,
+              8.66
+            ],
+            "output_sha256": "82ccfea3b77f12065badd42e983cd184d6bb68b1e24d66aef70b0095807ee6ee",
+            "p_vs_baseline": 0.01999000499750125
+          },
+          "nllb-3.3b": {
+            "chrf++": 29.81,
+            "chrf++_ci95": [
+              29.22,
+              30.4
+            ],
+            "bleu": 4.48,
+            "bleu_ci95": [
+              3.96,
+              5.01
+            ],
+            "output_sha256": "87f353cc315fabed5b1f09888c3ea29f8c1e302e7bd42ca005d549f4a9fecd5f",
+            "p_vs_baseline": 0.0004997501249375312,
+            "p_vs_1.3b": 0.0004997501249375312
+          }
+        }
+      }
+    },
+    "kam_to_en": {
+      "references_sha256": "612e9fbe87997617c0fa8fa8929654a4f49b728d96738112c2b86ef6a1d78d88",
+      "n": 1012,
+      "tiers": {
+        "T0": {
+          "nllb-600m": {
+            "chrf++": 32.35,
+            "chrf++_ci95": [
+              31.59,
+              33.11
+            ],
+            "bleu": 12.28,
+            "bleu_ci95": [
+              11.45,
+              13.12
+            ],
+            "output_sha256": "2372d894cead5ae51cbf46e2a5ff17cc2a8b5bd9c636b15c028c434bf0b5cd40"
+          },
+          "nllb-1.3b": {
+            "chrf++": 34.49,
+            "chrf++_ci95": [
+              33.66,
+              35.33
+            ],
+            "bleu": 13.91,
+            "bleu_ci95": [
+              13.01,
+              14.8
+            ],
+            "output_sha256": "4d9c0b51fd0fbf27693bc6b3fd54d6068fc3edfad72ce646263418d709dfb597",
+            "p_vs_baseline": 0.0004997501249375312
+          },
+          "nllb-3.3b": {
+            "chrf++": 34.87,
+            "chrf++_ci95": [
+              34.02,
+              35.71
+            ],
+            "bleu": 14.0,
+            "bleu_ci95": [
+              13.07,
+              14.93
+            ],
+            "output_sha256": "5457fffb9a2b766b6d0db04fbd5a2abd4f8b0b626dda0b012b380befe4fbbd64",
+            "p_vs_baseline": 0.0004997501249375312,
+            "p_vs_1.3b": 0.06846576711644178
+          }
+        }
+      }
+    }
+  },
+  "controls": {
+    "600m_fp32_vs_fp16": {
+      "n": 1012,
+      "chrf++_fp32": 27.59,
+      "chrf++_fp16": 27.59,
+      "identical_outputs": 938
+    }
+  }
+}

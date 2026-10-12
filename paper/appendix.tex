@@ -1,0 +1,117 @@
+\section{Reproducibility}
+\label{app:repro}
+
+\subsection{Commands}
+All commands run from the repository root. Translation and voice generation for local models used a GTX~1070 (8\,GB) in float32; the 3.3B model was queried through the deployed API. The MMS ASR run ran out of GPU memory on a long utterance after 566 of 827 files and was resumed on CPU (same weights, float32, greedy decoding). The 1.3B model's beam search exceeded the card's memory and spilled into shared memory, which only slowed it down.
+
+\begin{small}
+\begin{verbatim}
+python eval/fetch_data.py --fleurs
+python eval/mt_translate.py --system nllb-600m \
+       --direction both --device cuda
+python eval/mt_translate.py --system nllb-1.3b \
+       --direction both --device cuda
+python eval/mt_translate.py --system nllb-3.3b \
+       --direction both
+python eval/mt_score.py
+python eval/asr_eval.py --system farmerline --device cuda
+python eval/asr_eval.py --system mms --device cuda
+python eval/asr_eval.py --score
+python eval/tts_eval.py --generate mms
+python eval/tts_eval.py --generate omnivoice
+python eval/tts_eval.py --score
+python paper/make_numbers.py
+\end{verbatim}
+\end{small}
+
+\subsection{Frozen test sets}
+Fingerprints are SHA-256 over the lines of each file joined with \texttt{\textbackslash n} (\texttt{eval/common.py:sha256\_lines}). For FLEURS each line is \textit{file}\texttt{\textbackslash t}\textit{transcript}.
+
+\begin{small}
+\begin{tabular}{@{}ll@{}}
+\toprule
+File & SHA-256 (first 16 hex) \\
+\midrule
+FLORES \texttt{kam\_Latn.devtest} & \texttt{4ca915187b3fb35c} \\
+FLORES \texttt{eng\_Latn.devtest} & \texttt{612e9fbe87997617} \\
+FLORES \texttt{kam\_Latn.dev} & \texttt{a500dfe801ba81c0} \\
+FLORES \texttt{eng\_Latn.dev} & \texttt{51a25f527fd81f42} \\
+FLEURS \texttt{kam\_ke} test & \texttt{477beedb5f82d107} \\
+TTS 100-sentence sample & \texttt{96f0db09f4009c7c} \\
+\bottomrule
+\end{tabular}
+\end{small}
+
+Full hashes, the protocol block, library versions and the generating command are stored in each \texttt{eval/results/*.json}.
+
+\subsection{File inventory}
+\begin{small}
+\begin{tabular}{@{}p{0.42\linewidth}p{0.5\linewidth}@{}}
+\toprule
+Path & Content \\
+\midrule
+\texttt{eval/common.py} & protocol constants, normalisers, edit distance, bootstrap \\
+\texttt{eval/outputs/mt/} & every translation, one line per source line \\
+\texttt{eval/outputs/asr/} & every ASR transcript \\
+\texttt{eval/outputs/tts/} & TTS sample and round-trip transcripts \\
+\texttt{eval/results/} & score reports (JSON) \\
+\texttt{paper/numbers.tex} & every number in the paper, generated \\
+\bottomrule
+\end{tabular}
+\end{small}
+
+\subsection{Number-to-source map}
+Table~\ref{tab:mt} and the precision controls: \texttt{mt\_flores\_devtest.json}. Table~\ref{tab:asr} and the gender analysis: \texttt{asr\_fleurs\_test.json}. Table~\ref{tab:tts}: \texttt{tts\_asr\_roundtrip.json}. Tilde statistics: computed from the FLORES files and \texttt{eval/outputs/mt/}.
+
+\subsection{Checklist}
+\begin{itemize}\itemsep0pt
+  \item Test sets public, fixed, hashed: yes.
+  \item Same decoding as deployed system: yes (shared code in \texttt{app/translate.py}).
+  \item Confidence intervals and paired tests: yes, 2,000 resamples, seed 1234.
+  \item Normalisation tiers reported side by side: yes.
+  \item Fallback contamination of 3.3B outputs prevented: yes, run aborts on any non-3.3B answer.
+  \item Human evaluation: no.
+\end{itemize}
+
+\section{Deployment Notes}
+\label{app:deploy}
+
+Issues we met putting the system on free Hugging Face hardware, recorded because they are not obvious from the documentation:
+\begin{itemize}\itemsep0pt
+  \item The free CPU tier and Docker Spaces required payment for our account; ZeroGPU is available to Gradio-SDK Spaces only, so a FastAPI app has to be mounted on a Gradio app.
+  \item ZeroGPU refuses to start unless at least one \texttt{@spaces.GPU} function exists at import time, and \texttt{spaces} must be imported before \texttt{torch}.
+  \item Gradio's server-side rendering intercepted our POST routes (HTTP 405); \texttt{ssr\_mode=False} fixed it.
+  \item Casting OmniVoice to float16 produced silent audio; it runs in float32.
+  \item \texttt{transformers} starts a background download of a safetensors copy of \texttt{.bin}-only checkpoints; \texttt{DISABLE\_SAFETENSORS\_CONVERSION=1} avoids doubling disk use.
+  \item GPU time is requested per call in proportion to text length, because anonymous visitors share one quota.
+\end{itemize}
+
+\section{Negative Results}
+\label{app:negative}
+
+\begin{itemize}\itemsep0pt
+  \item \textbf{Community Kamba SpeechT5.} A public SpeechT5 \citep{ao2022speecht5} checkpoint fine-tuned for Kamba contains NaN weights and produces no audio.
+  \item \textbf{OmniVoice without a reference.} Without a clone prompt OmniVoice picks a voice per call, so consecutive sentences can sound like different people; we clone fixed FLEURS speakers instead.
+  \item \textbf{Gikuyu voice for Kikamba.} The closely related MMS Gikuyu voice is markedly less intelligible on Kikamba text than the Swahili one (Table~\ref{tab:tts}).
+  \item \textbf{Bible LoRA.} The public NLLB LoRA trained on Bible-verse pairs did not improve FLORES scores.
+  \item \textbf{Mined bitext.} OPUS NLLB v1 en--kam (1.63M pairs) is dominated by religious text and contains non-Kikamba target sides; we did not use it.
+\end{itemize}
+
+\section{Public Data Audit}
+\label{app:audit}
+
+\begin{small}
+\begin{tabular}{@{}p{0.36\linewidth}p{0.56\linewidth}@{}}
+\toprule
+Resource & Status for Kikamba \\
+\midrule
+FLORES-200 & 2,009 sentences (dev + devtest), evaluation only \\
+FLEURS \texttt{kam\_ke} & read speech, train/dev/test; test used here \\
+OPUS NLLB v1 & 1.63M mined pairs, noisy, religious-heavy \\
+KnoxDevelopers pairs & ${\sim}$31k Bible-verse pairs \\
+MMS-1B-all & ASR adapter \texttt{kam}; no Kamba TTS \\
+AfriVoices-KE & no Kamba \\
+OmniVoice & Kamba among 600+ languages (14.7\,h) \\
+\bottomrule
+\end{tabular}
+\end{small}

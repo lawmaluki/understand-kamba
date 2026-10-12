@@ -1,0 +1,259 @@
+\documentclass[11pt]{article}
+\usepackage[preprint]{acl}
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{inconsolata}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amsmath}
+\usepackage{xcolor}
+
+\newcommand{\tbd}{\textcolor{red}{??}}
+\input{numbers}
+
+\title{Understand Kamba: An Open English--Kikamba Translation, \\ Speech Recognition and Voice System on Free Infrastructure}
+
+\author{Lawrence Maluki \\
+  Independent researcher, Kenya \\
+  \texttt{karimicnjoka@gmail.com}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Kikamba (Kamba, ISO~639-3 \texttt{kam}) is a Bantu language of Kenya with about 4.6 million native speakers, yet it has almost no public language technology. We describe \emph{Understand Kamba}, an open web application that translates between English and Kikamba, transcribes spoken Kikamba and reads Kikamba aloud, and that runs entirely on free hosting tiers. The system composes existing open models---NLLB-200 for translation, a community w2v-BERT~2.0 model for speech recognition and OmniVoice for speech synthesis---and we evaluate each component on public held-out data under a frozen, hashed protocol with bootstrap confidence intervals and paired significance tests. On FLORES-200 devtest, Kikamba$\rightarrow$English chrF++ rises with NLLB model size from \mtKamEnSixHundred{} (600M) to \mtKamEnThreeB{} (3.3B), but for English$\rightarrow$Kikamba the 3.3B model is significantly worse (\mtEnKamThreeB{}) than the distilled 1.3B model (\mtEnKamOneThree{}), because it adds content that is not in the source. We show that 65\% of the FLORES Kikamba references omit the tilde vowels \emph{\~{\i}}/\emph{\~{u}} that the models write, so raw scores partly measure a spelling convention. On FLEURS test the deployed recogniser reaches \asrFarmerlineCER{}\% CER, while Meta's MMS Kamba adapter, which we had not deployed, reaches \asrMmsCER{}\%; and in an ASR round trip the cloned OmniVoice voices halve the character error rate of the Swahili voice the app used before (\ttsOmniFemaleCER{}\%/\ttsOmniMaleCER{}\% vs \ttsSwhCER{}\%), although likely overlap with OmniVoice's training data makes their comparison with real speech (\ttsRealCER{}\%) an upper bound. We do not claim new models; our contribution is an honest, reproducible account of what open models give a low-resource language today, released with all code, outputs and a consent-based voice-collection tool.
+\end{abstract}
+
+%=======================================================================
+\section{Introduction}
+
+Kikamba is spoken by the Akamba people of Machakos, Kitui and Makueni counties in Kenya. The 2019 census counts roughly 4.6 million Kamba \citep{knbs2019census}, making it one of Kenya's five largest languages. Like most African languages it is served poorly by language technology: there is no Kikamba option in mainstream consumer translators, and recent Kenyan speech-data efforts such as AfriVoices-KE \citep{wanzare2026afrivoices} do not include it.
+
+Large multilingual models have nonetheless started to cover Kikamba as one language among hundreds. NLLB-200 \citep{nllb2022} translates to and from \texttt{kam\_Latn}; MMS \citep{pratap2024mms} ships a Kamba speech-recognition adapter; FLEURS \citep{conneau2023fleurs} provides read Kamba speech; and the zero-shot TTS system OmniVoice \citep{zhu2026omnivoice} was trained on 14.7 hours of Kamba. What is missing is (i) an end-to-end tool that a Kamba speaker can actually use, and (ii) a careful measurement of how good these components are for Kikamba specifically, rather than as one row in a 200-language average.
+
+This paper provides both. Our contributions are:
+\begin{enumerate}
+  \item \textbf{A working, open system.} Understand Kamba (\url{https://understand-kamba.vercel.app}) offers text and speech translation in both directions, Kamba speech output with a female and a male voice, sharing, and a consented voice-recording page. It runs on free tiers (Vercel and a Hugging Face ZeroGPU Space), and we document the engineering needed to make this work (\S\ref{sec:system}).
+  \item \textbf{A frozen, reproducible evaluation} of translation (three NLLB sizes, both directions, FLORES-200 devtest), speech recognition (two models, FLEURS test) and synthesis (four voices plus real speech, ASR round trip), with hashed test sets, 95\% bootstrap intervals and paired tests (\S\ref{sec:protocol}--\ref{sec:results}).
+  \item \textbf{An orthography finding} that affects every published Kikamba MT number: only 35\% of FLORES Kamba references use \emph{\~{\i}}/\emph{\~{u}}, so we report a tilde-insensitive tier beside the raw score (\S\ref{sec:analysis}).
+  \item \textbf{Negative results and a data audit}, including why the largest public English--Kikamba corpora did not help (\S\ref{sec:analysis}, Appendix~\ref{app:negative}).
+\end{enumerate}
+
+\paragraph{What we do not claim.} We train no new model. We ran no human evaluation, so every quality number here is automatic and every speech-quality number is an ASR proxy. The system is a composition of other people's models; its value is in making them usable and measured for one language.
+
+%=======================================================================
+\section{Background and Related Work}
+\label{sec:related}
+
+\paragraph{Kikamba.} Kikamba is a Northeast Bantu language of the Thagiicu group (Guthrie E.55), closely related to Gikuyu, Embu and Meru. Machakos (Masaku) speech is usually treated as the standard; Kitui and Mumoni varieties differ in vocabulary and some sounds \citep{whiteley1962kamba}. It is written in the Latin alphabet with the extra vowels \emph{\~{\i}} and \emph{\~{u}}, which many writers omit in practice---a fact that matters for evaluation (\S\ref{sec:analysis}).
+
+\paragraph{Translation.} NLLB-200 \citep{nllb2022} covers 202 languages including Kikamba and was evaluated on FLORES-200, the extension of FLORES-101 \citep{goyal2022flores}. Its Kikamba training data comes largely from bitext mined with LASER3 \citep{heffernan2022laser3}, released through OPUS \citep{tiedemann2012opus}. Participatory work from Masakhane \citep{nekoto2020participatory} and MAFAND-MT \citep{adelani2022mafand} showed that a few thousand clean in-domain pairs can move African-language MT substantially; no such set exists publicly for Kikamba.
+
+\paragraph{Speech.} MMS \citep{pratap2024mms} provides language adapters for more than 1,000 languages, including Kamba, on top of a 1B-parameter wav2vec~2.0 model; its TTS models (VITS, \citealp{kim2021vits}) include Swahili and Gikuyu but not Kamba. FLEURS \citep{conneau2023fleurs} contains read FLORES sentences for 102 languages including Kamba (\texttt{kam\_ke}). A community model, FarmerlineML/w2v-bert-2.0\_kamba \citep{farmerline2025kamba}, fine-tunes w2v-BERT~2.0 \citep{seamless2023m4t} for Kamba ASR. OmniVoice \citep{zhu2026omnivoice} is a diffusion-language-model TTS system covering 600+ languages; its paper reports a FLEURS Kamba CER of 10.42 for generated speech against 8.81 for the ground truth.
+
+\paragraph{Evaluation practice.} We follow the reporting discipline of recent low-resource speech work \citep{kipkemboi2026kalenjin}: frozen and hashed test sets, explicit normalisation tiers, corpus-level metrics with bootstrap intervals \citep{koehn2004significance,bisani2004bootstrap}, and an explicit list of what the numbers cannot tell us.
+
+%=======================================================================
+\section{System}
+\label{sec:system}
+
+\begin{figure}[t]
+\centering
+\small
+\begin{tabular}{@{}l@{}}
+\toprule
+\textbf{Browser} (Next.js on Vercel) \\
+\quad text $\cdot$ microphone $\cdot$ audio file $\cdot$ share card \\
+\midrule
+\quad $\downarrow$ HTTPS / JSON \\
+\midrule
+\textbf{API} (FastAPI inside a Gradio ZeroGPU Space) \\
+\quad \texttt{/transcribe}\; w2v-BERT 2.0 Kamba (CPU) \\
+\quad \texttt{/translate}\;\, NLLB-3.3B fp16 (GPU) \\
+\quad \phantom{\texttt{/translate}\;\,} $\hookrightarrow$ NLLB-1.3B (CPU fallback) \\
+\quad \texttt{/synthesize} OmniVoice clone fp32 (GPU) \\
+\quad \phantom{\texttt{/synthesize}} $\hookrightarrow$ MMS-TTS Swahili (CPU) \\
+\quad \texttt{/voice/recordings} $\rightarrow$ private dataset \\
+\bottomrule
+\end{tabular}
+\caption{Architecture of Understand Kamba. Every response names the model that produced it, so the interface and our evaluation can tell a GPU answer from a fallback.}
+\label{fig:arch}
+\end{figure}
+
+Figure~\ref{fig:arch} shows the architecture. A Next.js front end calls a FastAPI back end; both are open source.
+
+\paragraph{Translation.} Input is split into sentences and each is translated with beam search (beam 5, \texttt{no\_repeat\_ngram\_size}=4, output capped at twice the input length plus 16 tokens); the cap and n-gram block stop the repetition loops NLLB otherwise produces on short Kikamba inputs. The primary model is NLLB-200 3.3B in float16 on a ZeroGPU slice; if the GPU quota is exhausted the call falls back to the distilled 1.3B model on CPU. A third mode translates Kikamba into both Swahili and English.
+
+\paragraph{Speech recognition.} Microphone or uploaded audio is converted to 16\,kHz mono with ffmpeg and transcribed with greedy CTC decoding by the Farmerline w2v-BERT~2.0 model. A URL mode fetches audio from public video pages.
+
+\paragraph{Speech synthesis.} No usable Kamba TTS model was public when we started (Appendix~\ref{app:negative}), so the first version read Kikamba with the MMS Swahili voice, which shares most of Kikamba's letter-to-sound rules. The current version uses OmniVoice with language tag \texttt{kam}, cloning one female and one male FLEURS speaker (CC-BY-4.0, credited in the repository). Clone prompts are built once on CPU at start-up; generation runs in float32 on GPU because float16 casting produced silent output. The Swahili voice remains a fallback and the interface labels which voice was used.
+
+\paragraph{Free hosting.} Hugging Face's free ZeroGPU tier attaches an H200 slice only for the duration of functions decorated with \texttt{@spaces.GPU}, and only for Gradio-SDK Spaces \citep{hf2026zerogpu}. We therefore mount the FastAPI routes on the Gradio app \citep{abid2019gradio}, request GPU time per call in proportion to text length (10--60\,s for speech), and keep every model resident on CPU between calls. Anonymous traffic shares one Space-wide quota; the CPU fallbacks keep the service usable when it runs out. Appendix~\ref{app:deploy} lists the pitfalls we hit.
+
+\paragraph{Voice collection.} A \texttt{/contribute} page lets speakers read FLORES Kikamba sentences aloud after an explicit consent step (versioned, with purpose, storage and withdrawal terms, written with the Kenya Data Protection Act 2019 in mind, \citealp{kenyadpa2019}). Recordings of 1--20\,s are checked for silence and rate-limited, then committed to a private Hugging Face dataset. No recordings collected this way are used in this paper.
+
+%=======================================================================
+\section{Evaluation Data}
+\label{sec:data}
+
+\begin{table}[t]
+\centering\small
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+Set & Items & Size & Licence \\
+\midrule
+FLORES-200 devtest & 1,012 sent. & --- & CC-BY-SA 4.0 \\
+FLEURS \texttt{kam\_ke} test & 827 utt. & 3.73\,h & CC-BY 4.0 \\
+\quad distinct sentences & 346 & & \\
+\quad female / male utt. & \asrNFemale{} / \asrNMale{} & & \\
+TTS sample (FLEURS test) & 100 sent. & --- & CC-BY 4.0 \\
+\bottomrule
+\end{tabular}
+\caption{Held-out evaluation data. SHA-256 fingerprints of every reference file are in Appendix~\ref{app:repro}.}
+\label{tab:data}
+\end{table}
+
+Table~\ref{tab:data} lists the evaluation sets. All are public, downloaded by a script (\texttt{eval/fetch\_data.py}) and fingerprinted.
+
+\paragraph{Leakage controls.} FLORES devtest is the standard held-out split for NLLB, which did not train on it. FLEURS is split by sentence, so test sentences are absent from FLEURS train and dev; the two FLEURS clips used as voice-clone references come from the \emph{dev} split, and the TTS sample is drawn only from \emph{test}. We cannot rule out that the Farmerline ASR model or OmniVoice saw FLEURS test audio, because their training data are not fully documented; we flag this in \S\ref{sec:limits}. The voice-contribution prompts are drawn from FLORES dev and devtest, so recordings collected through the app must never be used to train a model that is later scored on FLORES or FLEURS.
+
+%=======================================================================
+\section{Evaluation Protocol}
+\label{sec:protocol}
+
+The protocol was fixed before the final runs and is pinned in \texttt{eval/common.py}; every result file records it together with library versions and the exact command.
+
+\paragraph{Translation.} Primary metric chrF++ \citep{popovic2015chrf,popovic2017chrfpp}, secondary BLEU \citep{papineni2002bleu}, both via sacreBLEU \citep{post2018sacrebleu} with default tokenisation. We report 95\% bootstrap intervals (2,000 resamples, seed 1234) and paired bootstrap tests against the 600M baseline \citep{koehn2004significance}. Decoding is identical to the deployed app. English$\rightarrow$Kikamba is scored at two tiers applied identically to hypotheses and references: \textbf{T0}, raw text, and \textbf{T1}, with \emph{\~{\i}}$\rightarrow$\emph{i} and \emph{\~{u}}$\rightarrow$\emph{u}. We always report T0 next to T1.
+
+\paragraph{Speech recognition.} Primary metric character error rate (CER), secondary word error rate (WER), computed at corpus level (total edits over total reference length). Normalisation tier \textbf{K0}: Unicode NFC, lower-case, punctuation to space (apostrophes and \emph{\~{\i}}/\emph{\~{u}} kept), whitespace collapsed; \textbf{K1}: K0 with diacritics removed. Intervals use 2,000 utterance-level bootstrap resamples \citep{bisani2004bootstrap}; the paired test resamples utterances jointly for both systems and reports the one-sided $p$-value of the difference. We break results down by speaker gender as recorded in FLEURS.
+
+\paragraph{Speech synthesis.} Each voice reads the same 100 FLEURS-test sentences (seed 1234, one sentence per distinct text). The audio is resampled to 16\,kHz and transcribed by the app's ASR model; we report CER at K1 (the ASR writes no tildes) with intervals and paired tests against the Swahili voice. The same pipeline applied to the real FLEURS recordings gives a reference point for the recogniser's own error on natural speech. This measures intelligibility \emph{to a machine}, not naturalness.
+
+%=======================================================================
+\section{Results}
+\label{sec:results}
+
+\begin{table*}[t]
+\centering\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+& \multicolumn{2}{c}{Kikamba $\rightarrow$ English} & \multicolumn{3}{c}{English $\rightarrow$ Kikamba (chrF++)} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-6}
+System & chrF++ & BLEU & T0 raw & T1 tilde-folded & BLEU (T0) \\
+\midrule
+NLLB-200 distilled 600M & \mtKamEnSixHundredCI & \mtKamEnSixHundredBLEU & \mtEnKamSixHundredCI & \mtEnKamSixHundredTone & \mtEnKamSixHundredBLEU \\
+NLLB-200 distilled 1.3B & \mtKamEnOneThreeCI & \mtKamEnOneThreeBLEU & \mtEnKamOneThreeCI & \mtEnKamOneThreeTone & \mtEnKamOneThreeBLEU \\
+NLLB-200 3.3B (deployed) & \mtKamEnThreeBCI & \mtKamEnThreeBBLEU & \mtEnKamThreeBCI & \mtEnKamThreeBTone & \mtEnKamThreeBBLEU \\
+\bottomrule
+\end{tabular}
+\caption{Translation on FLORES-200 devtest (1,012 sentences). Brackets: 95\% bootstrap intervals. $^\dagger$/$^\ddagger$: significantly better/worse than 600M (paired bootstrap, $p<0.05$).}
+\label{tab:mt}
+\end{table*}
+
+\paragraph{Translation.} Table~\ref{tab:mt} shows the results. Kikamba$\rightarrow$English improves with size, from \mtKamEnSixHundred{} chrF++ for the 600M model to \mtKamEnOneThree{} for 1.3B and \mtKamEnThreeB{} for 3.3B; the last two are not significantly different (paired bootstrap $p=0.07$). English$\rightarrow$Kikamba behaves differently. The distilled 1.3B model is slightly better than 600M (\mtEnKamOneThree{} vs \mtEnKamSixHundred{}, $p=0.02$), but the 3.3B model, which the app was serving, is significantly \emph{worse} than both (\mtEnKamThreeB{}, $p<0.001$), and the gap holds at the tilde-folded tier. BLEU follows chrF++ but is below 5 for every system in this direction, too low to discriminate much.
+
+\begin{table}[t]
+\centering\small
+\resizebox{\linewidth}{!}{\begin{tabular}{@{}llcc@{}}
+\toprule
+System & Tier & CER (\%) & WER (\%) \\
+\midrule
+\multirow{2}{*}{Farmerline w2v-BERT 2.0} & K0 & \asrFarmerlineKzero & \asrFarmerlineWERKzero \\
+ & K1 & \asrFarmerlineKone & \asrFarmerlineWERKone \\
+\midrule
+\multirow{2}{*}{MMS-1B-all (\texttt{kam})} & K0 & \asrMmsKzero & \asrMmsWERKzero \\
+ & K1 & \asrMmsKone & \asrMmsWERKone \\
+\bottomrule
+\end{tabular}}
+\caption{Speech recognition on FLEURS \texttt{kam\_ke} test (827 utterances), greedy CTC, corpus-level with 95\% bootstrap intervals.}
+\label{tab:asr}
+\end{table}
+
+\paragraph{Speech recognition.} Table~\ref{tab:asr} shows the results. The MMS Kamba adapter is significantly more accurate than the Farmerline model the app deploys: \asrMmsCER{}\% against \asrFarmerlineCER{}\% CER at tier K0 (paired bootstrap $p<0.001$, both tiers), while word error rates are closer. Both models rarely write the tilde vowels, so dropping diacritics (K1) removes a quarter (Farmerline) to over a third (MMS) of the character errors. Word error rates of 30--43\% look high next to the character error rates; Kikamba words are long and agglutinative, so one wrong affix makes the whole word wrong. We caution against reading the MMS advantage as general: MMS was trained on FLEURS training audio (same recording conditions and text domain, possibly the same speakers, but different sentences), whereas Farmerline's training data is not documented and may be closer to everyday speech. The comparison argues for testing MMS on in-app recordings before switching.
+
+\begin{table}[t]
+\centering\small
+\resizebox{\linewidth}{!}{\begin{tabular}{@{}lcc@{}}
+\toprule
+Voice & CER K1 (\%) & WER K1 (\%) \\
+\midrule
+Real FLEURS speech & \ttsRealRow \\
+\midrule
+OmniVoice, female clone & \ttsOmniFemaleRow \\
+OmniVoice, male clone & \ttsOmniMaleRow \\
+MMS-TTS Swahili (previous) & \ttsSwhRow \\
+MMS-TTS Gikuyu & \ttsKikRow \\
+\bottomrule
+\end{tabular}}
+\caption{Voice intelligibility by ASR round trip on 100 FLEURS-test sentences, transcribed by the deployed ASR model, with 95\% bootstrap intervals. Lower is better; real speech is the reference point. $^\dagger$: CER significantly lower than the Swahili voice (paired bootstrap, one-sided $p<0.05$).}
+\label{tab:tts}
+\end{table}
+
+\paragraph{Speech synthesis.} Table~\ref{tab:tts} shows the results. Both cloned OmniVoice voices are far more intelligible to the recogniser than the Swahili voice the app used before (\ttsOmniFemaleCER{}\% and \ttsOmniMaleCER{}\% CER against \ttsSwhCER{}\%; paired bootstrap $p<0.001$), roughly halving the error. The closely related Gikuyu voice is the least intelligible (\ttsKikCER{}\%), which suggests that orthographic closeness (Swahili spelling is close to Kikamba's) matters more for a borrowed voice than genetic closeness.
+
+The OmniVoice clones also score \emph{below} the real FLEURS recordings of the same sentences (\ttsRealCER{}\%). We do not read this as ``better than human''. Synthetic speech is clean, evenly paced and free of the hesitations and background noise of crowd-sourced recordings, which favours a recogniser. More importantly, OmniVoice's 14.7 hours of Kamba training data very likely come from FLEURS itself, possibly including these test sentences, and the voices are cloned from FLEURS speakers. The comparison with real speech is therefore an upper bound on intelligibility, not evidence of naturalness.
+
+%=======================================================================
+\section{Analysis}
+\label{sec:analysis}
+
+\paragraph{The tilde vowels.} Kikamba's \emph{\~{\i}} and \emph{\~{u}} are phonemically distinct from \emph{i} and \emph{u}, but writers often drop them. In FLORES-200, only 352 of the 1,012 devtest Kikamba references (35\%) and 348 of 997 dev references contain either letter. Where a reference does use them, 41\% of its words carry one, so their absence elsewhere reflects the translator's spelling habit rather than the content. Every one of the 1,012 outputs of both the 600M and the 3.3B model contains \emph{\~{\i}} or \emph{\~{u}}, so in the en$\rightarrow$kam direction a correctly chosen word is often counted as a character-level error. Folding the tildes (T1) adds \mtTildeGain{} chrF++ points to the deployed model. This is a property of the references, not a translation improvement, which is why we never report T1 alone. Future Kikamba test sets should fix one orthography, and published Kikamba MT scores should state whether they fold.
+
+\paragraph{Model size and direction.} Scale helps the model \emph{read} Kikamba but not \emph{write} it. Writing English draws on the model's abundant English training data, so a larger model that understands the source better gains directly. Writing Kikamba is bounded by how little Kikamba the models saw, and the 3.3B model fills the gap with fluent-looking invention: its Kikamba outputs are 17\% longer than the references (600M: 10\%, 1.3B: 11\%), and 165 of them are more than 1.6 times the reference length, against 69 for 600M. Inspection shows content with no counterpart in the source. For ``That didn't seem to make sense to me; it certainly wasn't fair.'', the 600M output is about the length of the reference, while the 3.3B output introduces \emph{Akl\~{\i}sto} (``Christians''), echoing the religious text that dominates public Kikamba data (Appendix~\ref{app:audit}). The distilled models, trained to imitate a larger teacher, produce shorter and more literal output, which chrF++ rewards.
+
+The Space runs 3.3B in float16, so we checked whether half precision could explain the gap. Running the 600M model in float16 instead of float32 leaves its English$\rightarrow$Kikamba chrF++ unchanged (\ctrlFpThirtyTwo{} vs \ctrlFpSixteen{}; \ctrlFpIdentical{} of 1,012 outputs identical). The 3.3B model itself does not fit our local hardware in either precision, so a precision effect specific to 3.3B cannot be fully excluded; the Space applies the same decoding code as our local runs.
+
+The practical conclusion is that the deployed app should translate English$\rightarrow$Kikamba with the 1.3B model, which is also faster and cheaper in GPU quota, and that one model-size choice per direction beats one model for both.
+
+\paragraph{Gender.} The deployed recogniser makes slightly more errors on male than on female speakers (K1 CER \asrFarmerlineKoneM{}\% vs \asrFarmerlineKoneF{}\%; K0 \asrFarmerlineKzeroM{}\% vs \asrFarmerlineKzeroF{}\%), but the 95\% intervals overlap at both tiers, so we find no reliable gender gap. FLEURS has few speakers per language, so this is a statement about these speakers rather than about Kikamba-speaking women and men in general. The two cloned voices are equally intelligible (Table~\ref{tab:tts}).
+
+\paragraph{Why not fine-tune?} The two largest public English--Kikamba resources are unsuitable for a general-purpose fine-tune. A public LoRA \citep{hu2022lora,knox2025kikamba} trained on about 31,000 English--Kikamba pairs did not improve FLORES scores in our checks; the pairs are Bible verses. The OPUS NLLB release has 1.63M mined en--kam pairs, but a manual look at samples showed heavy religious content and a share of pairs whose ``Kikamba'' side is another language. A score of 50+ chrF++ in the en$\rightarrow$kam direction will, in our view, require a few thousand clean, everyday, human-translated pairs, which is the data-collection direction we are pursuing.
+
+%=======================================================================
+\section{Limitations}
+\label{sec:limits}
+
+\paragraph{No human evaluation.} All numbers are automatic. chrF++ against a single reference undercounts valid paraphrases, and an ASR round trip says nothing about naturalness, prosody or whether a listener would call a voice Kamba-sounding. A small native-speaker rating study is the most important missing experiment.
+
+\paragraph{One judge for the voices.} The TTS scores use the same recogniser that the app deploys. That recogniser was probably trained on FLEURS-like read speech, which can favour voices cloned from FLEURS speakers and the real FLEURS recordings themselves.
+
+\paragraph{Unknown training data.} We cannot verify that the Farmerline ASR model or OmniVoice excluded FLEURS test audio. OmniVoice's Kamba data (14.7\,h) is not itemised in its paper. Results on FLEURS may therefore be optimistic for both.
+
+\paragraph{Domain and dialect.} FLORES and FLEURS are Wikipedia-style read text. Everyday conversational Kikamba, code-switching with Swahili and English, and the Kitui and Mumoni varieties are not represented, and the app's dialect selector does not change the models.
+
+\paragraph{Sentence splitting.} The deployed system splits input at sentence-final punctuation before translating. Its splitter also breaks after initials and titles (``John F.\ Kennedy'', ``Dr.''), which happens on 24 English and 14 Kikamba devtest lines (2.4\% and 1.4\%). All systems share the splitter, so comparisons are unaffected, but absolute scores are slightly lower than with a better splitter.
+
+\paragraph{Free-tier dependence.} The deployed quality depends on a shared GPU quota; when it runs out, users silently get the 1.3B model and the Swahili voice (labelled in the interface). Our 3.3B numbers were produced through the live API and the run stopped automatically if any response came from the fallback.
+
+\paragraph{Licences.} NLLB-200 and OmniVoice weights are released for non-commercial use, so the system as deployed is non-commercial.
+
+%=======================================================================
+\section{Ethical Considerations}
+
+\paragraph{Voices of real people.} The two deployed voices clone FLEURS speakers, whose recordings are CC-BY-4.0 and credited, but who did not consent specifically to having their voices cloned for a public app. We regard this as a stop-gap and intend to replace them with speakers who consent explicitly through our recording page.
+
+\paragraph{Consent and data protection.} Voice recordings are personal data under Kenya's Data Protection Act 2019 \citep{kenyadpa2019}. Our contribution flow records a versioned consent, states the purpose and storage location, keeps recordings in a private dataset, and supports withdrawal. We collect no names; a random contributor id lets a speaker ask for deletion.
+
+\paragraph{Community.} Tools for a language should be shaped by its speakers. The app shows the model behind every answer, asks users to rate translations, and avoids claiming accuracy it does not have.
+
+%=======================================================================
+\section{Conclusion}
+
+Open multilingual models already make a usable English--Kikamba tool possible on free infrastructure: translation from Kikamba into English is decent from the 1.3B scale up, speech recognition is usable (and Meta's MMS adapter may serve better than the model we deployed), and a zero-shot cloned voice is far more intelligible than the borrowed Swahili voice it replaced. Our measurements also changed our own deployment choices: bigger was not better for English$\rightarrow$Kikamba. Producing Kikamba text remains the weak point, and its measured quality is distorted by inconsistent orthography in the reference data. Both problems call for the same remedy: clean, consented, everyday Kikamba data. We release the system, the evaluation code, all model outputs and a recording tool to help collect it.
+
+\section*{Acknowledgments}
+We thank the creators of NLLB-200, FLORES, FLEURS, MMS, OmniVoice and the Farmerline Kamba ASR model for releasing their work openly, the FLEURS speakers whose recordings serve as the current voices, and Hugging Face for free GPU access.
+
+\section*{Data and Code Availability}
+Code, evaluation scripts, all system outputs and result reports: \url{https://github.com/lawmaluki/understand-kamba}. Live system: \url{https://understand-kamba.vercel.app}. API: \url{https://lawmaluki-understand-kamba-api.hf.space}. Test sets are downloaded from their original sources by \texttt{eval/fetch\_data.py}.
+
+\bibliography{references}
+
+\appendix
+\input{appendix}
+
+\end{document}

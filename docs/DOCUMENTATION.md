@@ -1,8 +1,10 @@
 # Understand Kamba — Project Documentation
 
-English and Kikamba translation, Kikamba speech recognition, and read-aloud playback, running entirely on your own machine.
+English and Kikamba translation, Kikamba speech recognition, and a Kamba voice. Live at https://understand-kamba.vercel.app, with the API on a free Hugging Face ZeroGPU Space; everything also runs on your own machine.
 
-Last updated: 29 September 2026
+Last updated: 9 October 2026
+
+This is the developer documentation. App users: see USER-GUIDE.md. Voice contributors and data handling: see CONTRIBUTOR-DATA-GUIDE.md. Evaluation: eval/README.md and the paper in paper/.
 
 ## 1. Overview
 
@@ -13,17 +15,17 @@ Understand Kamba is a web app backed by a Python API. It lets you:
 - hear Kikamba text read aloud,
 - rate, copy, share and save translations.
 
-All models run locally. No paid API or account is needed with the default settings, and no text or audio leaves the machine running the backend.
+All models are open and run on the backend itself, locally or on the Hugging Face Space. No paid API is needed with the default settings, and no text or audio is sent to a third-party service.
 
-**Status: working prototype.** Every feature in the interface is backed by a real model, but translation accuracy has not yet been checked by a Kikamba speaker, and the voice is a Swahili voice reading Kikamba (see section 8). Treat outputs as drafts, not authoritative translations.
+**Status: deployed, evaluated, not human-verified.** Every feature is backed by a real model and each component has been measured on public test sets (section 8), but no Kikamba speaker has systematically rated the output. Treat translations as drafts, not authoritative.
 
 ## 2. Features at a glance
 
 | Feature | How it works | Quality today |
 |---|---|---|
-| English to Kikamba, Kikamba to English | Meta NLLB-200 (distilled 600M) | Unverified by a Kikamba speaker. Kamba is low-resource in NLLB and some output shows Kikuyu-style grammar. |
-| Kikamba speech to text | FarmerlineML/w2v-bert-2.0_kamba | About 30% word error rate and 7% character error rate on its publisher's own test set. |
-| Read aloud | Hosted: OmniVoice (k2-fsa) on the Space's GPU, cloning a Kamba woman or man from Google FLEURS. Local, and fallback: Meta MMS Swahili voice | OmniVoice: Kamba pronunciation including ĩ and ũ; the Kamba speech model misheard about 2 to 6% of characters. Swahili fallback: Swahili accent, ĩ and ũ read as i and u (about 9%). |
+| English to Kikamba, Kikamba to English | Meta NLLB-200: 3.3B on the hosted GPU (1.3B fallback), distilled 600M locally | FLORES chrF++ about 35 Kikamba → English and 24–28 English → Kikamba (section 8). Not yet rated by Kikamba speakers. |
+| Kikamba speech to text | FarmerlineML/w2v-bert-2.0_kamba | 11% character / 33% word error rate on FLEURS test, ignoring ĩ/ũ. |
+| Read aloud | Hosted: OmniVoice (k2-fsa) on the Space's GPU, cloning a Kamba woman or man from Google FLEURS. Local, and fallback: Meta MMS Swahili voice | OmniVoice: Kamba pronunciation including ĩ and ũ; the Kamba speech model mishears about 7% of characters. Swahili fallback: Swahili accent, ĩ and ũ read as i and u (14%). |
 | Usage stats and ratings | Counted by the backend, stored in data/ | Real numbers. |
 | Copy, share, save | In the browser | Share creates an image card (Post 4:5 or Story 9:16) drawn in the browser. Saved translations stay in that browser only. |
 | Dialect selection | Label only | All four dialects use the same models, so the output does not change. |
@@ -144,7 +146,7 @@ Backend settings are read from environment variables, normally supplied through 
 | ANTHROPIC_API_KEY | (empty) | Required only when TRANSLATION_BACKEND=anthropic |
 | TRANSLATION_MODEL | (empty) | Claude model ID, required only when TRANSLATION_BACKEND=anthropic |
 | MAX_TRANSLATE_CHARS | 500 | Longest text accepted. Keep in step with MAX_TRANSLATE_CHARS in web/src/lib/api.ts. |
-| ASR_MODEL_ID | FarmerlineML/w2v-bert-2.0_kamba | Speech recognition model. facebook/mms-1b-all also works, but its Kamba support is unconfirmed. |
+| ASR_MODEL_ID | FarmerlineML/w2v-bert-2.0_kamba | Speech recognition model. facebook/mms-1b-all (with ASR_TARGET_LANG=kam) is more accurate on FLEURS (7% vs 11% character error, section 8) but larger and slower; test it on real app recordings before switching. |
 | ASR_TARGET_LANG | kam | Language adapter, used only with MMS models |
 | MAX_AUDIO_SECONDS | 60 | Audio longer than this is trimmed. Keep in step with MAX_RECORDING_SECONDS in web/src/lib/api.ts. |
 | SAMPLE_RATE | 16000 | Sample rate audio is converted to before transcription |
@@ -288,17 +290,31 @@ Meta's No Language Left Behind model includes Kamba (code kam_Latn), but Kamba h
 
 Known issue: some words appear to be wrong. For example, "Did you sleep well?" came out as "We nĩwasomie nesa?", where nĩwasomie may mean "did you read". A Kikamba speaker should review output before it is relied on.
 
-Model sizes, scored on 100 FLORES-200 sentences, Kikamba to English (chrF++, higher is better): 600M 34.0, distilled 1.3B 37.5, 3.3B 38.1. English to Kikamba stays around 30 for all three. The local default is the 600M model; the hosted backend runs 3.3B on the Space's GPU with 1.3B as its CPU fallback (see docs/BACKEND-HOSTING-MIGRATION.md, section 10).
+Measured on the full FLORES-200 devtest (1,012 sentences; chrF++, higher is better; 95% confidence intervals in eval/results/mt_flores_devtest.json):
+
+| Model | Kikamba → English | English → Kikamba (raw) | English → Kikamba (ĩ/ũ folded) |
+|---|---|---|---|
+| distilled 600M | 32.4 | 27.6 | 35.2 |
+| distilled 1.3B | 34.5 | **28.0** | **35.7** |
+| 3.3B | **34.9** | 24.0 | 29.8 |
+
+- Kikamba → English improves with size, but 1.3B and 3.3B are statistically tied (p = 0.07).
+- English → Kikamba: the 3.3B model is significantly *worse* than both smaller models. It writes longer output and adds content that is not in the source. The 1.3B model is the best choice for this direction.
+- Only 35% of the FLORES Kikamba reference sentences use ĩ and ũ, while the models always do, so raw English → Kikamba scores partly measure spelling. The folded column treats ĩ/i and ũ/u as the same.
+
+The local default is the 600M model; the hosted backend runs 3.3B on the Space's GPU with 1.3B as its CPU fallback (see docs/BACKEND-HOSTING-MIGRATION.md, section 10). Given the results above, English → Kikamba should move to the 1.3B model.
+
+Known issue: the sentence splitter also splits after initials and titles ("John F. Kennedy", "Dr."), which affects about 2% of sentences.
 
 ### Speech recognition: w2v-BERT Kamba
 
-A community fine-tune of Meta's w2v-BERT 2.0 published by Farmerline. Its model card reports a 30% word error rate and 7% character error rate, on a test set that is not described. In testing, words were mostly recognisable but sometimes merged or misspelled.
+A community fine-tune of Meta's w2v-BERT 2.0 published by Farmerline. On the FLEURS Kamba test set (827 recordings) it gets 10.8% of characters and 33% of words wrong when ĩ/ũ are ignored (14.3% and 43% counting them, since it rarely writes the tildes). Women and men are recognised equally well within the margin of error. Meta's facebook/mms-1b-all with its Kamba adapter does better on the same test (7.2% of characters, 30% of words, ignoring ĩ/ũ), but it was trained on FLEURS training audio, so part of that advantage may not carry over to everyday speech. Details: eval/results/asr_fleurs_test.json.
 
 ### Voice: OmniVoice cloning Kamba speakers
 
 The hosted backend reads Kikamba with OmniVoice (k2-fsa, 2026; model weights CC-BY-NC, code Apache-2.0), a 0.6-billion-parameter text-to-speech model covering 600+ languages. Its training data included 14.7 hours of Kamba, most likely from Google's FLEURS dataset. Its own default voice does not work for Kamba (no recognisable speech on two of five test sentences), so it clones one of two 8-second recordings of real Kamba speakers, a woman and a man, from FLEURS (app/data/voices, CC-BY 4.0). Visitors choose Woman or Man next to the play button.
 
-In our tests the Kamba speech model misheard about 2 to 6% of characters from the cloned voices, against about 9% for the Swahili voice, and ĩ and ũ are pronounced as written. That score may flatter OmniVoice, because the speech model may also have been trained on FLEURS. It runs on the Space's ZeroGPU GPU (about 7 to 9 seconds per request including queueing), in full precision: casting it to float16 made it output silence. When the GPU can't be used, the Swahili voice below reads the text and the player says so.
+Measured on 100 FLEURS test sentences, the Kamba speech model misheard 6.8% (woman) and 7.0% (man) of characters from the cloned voices, against 14.1% for the Swahili voice, 25.1% for the Kikuyu voice and 10.7% for the real FLEURS recordings. Beating real speech does not mean the voice is more natural: synthetic speech is clean, and OmniVoice was very likely trained on FLEURS audio, possibly including these sentences. Details: eval/results/tts_asr_roundtrip.json. It runs on the Space's ZeroGPU GPU (about 7 to 9 seconds per request including queueing), in full precision: casting it to float16 made it output silence. When the GPU can't be used, the Swahili voice below reads the text and the player says so.
 
 The FLEURS speakers recorded for research. Before wider public use, consider replacing the reference clips with recordings from Kamba speakers who agree to be the app's voice; see app/data/voices/README.md.
 
@@ -310,7 +326,7 @@ To switch voices later, set TTS_MODEL_ID to any MMS/VITS model, for example a fu
 
 ### Measuring accuracy
 
-FLORES-200 (news-style sentences with professional Kamba translations) gives an objective score and was used to compare model sizes above. It does not reflect everyday conversation, so the most useful next step is a second test set: 30 to 50 typical sentences with Kikamba translations written by a speaker. The ratings log in data/feedback.jsonl is a good source of sentences that went wrong.
+All numbers above come from eval/ (see eval/README.md for how to reproduce them) and are discussed in the research paper in paper/. FLORES and FLEURS are Wikipedia-style read text and do not reflect everyday conversation, and no Kikamba speaker has rated the output yet, so the most useful next steps are a small native-speaker rating study and a second test set of everyday sentences with speaker-written Kikamba translations. The ratings log in data/feedback.jsonl is a good source of sentences that went wrong.
 
 ## 9. Data and privacy
 
@@ -361,7 +377,9 @@ understand-kamba/
   space/            Hugging Face Space entry point and config
   scripts/          model tests, deploy_space.py, build_prompts.py,
                     build_pdf.py
-  docs/             this documentation
+  eval/             evaluation scripts, outputs and score reports (eval/README.md)
+  paper/            research paper (LaTeX), make_numbers.py
+  docs/             this documentation, USER-GUIDE.md, CONTRIBUTOR-DATA-GUIDE.md
   data/             stats and ratings (created on first use)
   Dockerfile        backend image for hosts other than the Space (CPU only)
   .env.example      configuration template
@@ -388,8 +406,9 @@ The accent colour is butter yellow (#F8E27A), defined as the butter-50 to butter
 
 ## 12. Known limitations and next steps
 
-- Translation accuracy is unmeasured. Build a speaker-checked test set (section 8).
-- No real Kikamba voice. Revisit if Meta or the community publishes one.
+- Accuracy is measured automatically (section 8) but not yet by Kikamba speakers.
+- English → Kikamba should switch from the 3.3B to the 1.3B model (section 8).
+- The voices clone FLEURS speakers who did not consent to being the app's voice; replace them with consenting speakers (CONTRIBUTOR-DATA-GUIDE.md, section 7).
 - Dialect selection does not change the output; there are no per-dialect models.
 - No formal-register option.
 - No login, rate limiting or abuse protection, and CORS allows any origin. Tighten these before deploying publicly.

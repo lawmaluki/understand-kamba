@@ -1,0 +1,128 @@
+{
+  "generated": "2026-10-09T19:12:22Z",
+  "command": "python.exe eval/tts_eval.py --score",
+  "test_set": "100 sentences sampled (seed 1234) from FLEURS kam_ke test",
+  "sentences_sha256": "96f0db09f4009c7c2374f84cf1799be73e099cae001910fa61948cb01ee5ab4f",
+  "asr_model": "FarmerlineML/w2v-bert-2.0_kamba",
+  "protocol": {
+    "bootstrap_resamples": 2000,
+    "seed": 1234,
+    "ci": "95% bootstrap over items (Bisani & Ney 2004); paired for system comparisons",
+    "environment": {
+      "python": "3.12.10",
+      "numpy": "2.5.3",
+      "platform": "Windows-11-10.0.26200-SP0",
+      "torch": "2.14.0+cpu",
+      "transformers": "5.17.0",
+      "sacrebleu": "2.6.0"
+    },
+    "primary_metric": "CER of the ASR transcript vs the input text (tier K1)",
+    "secondary_metric": "CER at tier K0, WER at K1"
+  },
+  "voices": {
+    "real": {
+      "cer_k1": 0.1067,
+      "cer_k1_ci95": [
+        0.0858,
+        0.1328
+      ],
+      "wer_k1": 0.3241,
+      "wer_k1_ci95": [
+        0.2939,
+        0.3559
+      ],
+      "cer_k0": 0.1333,
+      "empty_transcripts": 0
+    },
+    "omnivoice-female": {
+      "cer_k1": 0.0675,
+      "cer_k1_ci95": [
+        0.0547,
+        0.0836
+      ],
+      "wer_k1": 0.2654,
+      "wer_k1_ci95": [
+        0.2419,
+        0.2907
+      ],
+      "cer_k0": 0.0947,
+      "empty_transcripts": 0
+    },
+    "omnivoice-male": {
+      "cer_k1": 0.0699,
+      "cer_k1_ci95": [
+        0.0581,
+        0.084
+      ],
+      "wer_k1": 0.2819,
+      "wer_k1_ci95": [
+        0.2528,
+        0.3137
+      ],
+      "cer_k0": 0.0972,
+      "empty_transcripts": 0
+    },
+    "mms-swh": {
+      "cer_k1": 0.1405,
+      "cer_k1_ci95": [
+        0.1302,
+        0.1522
+      ],
+      "wer_k1": 0.528,
+      "wer_k1_ci95": [
+        0.5019,
+        0.5559
+      ],
+      "cer_k0": 0.1673,
+      "empty_transcripts": 0
+    },
+    "mms-kik": {
+      "cer_k1": 0.251,
+      "cer_k1_ci95": [
+        0.24,
+        0.2618
+      ],
+      "wer_k1": 0.7714,
+      "wer_k1_ci95": [
+        0.751,
+        0.7904
+      ],
+      "cer_k0": 0.2735,
+      "empty_transcripts": 0
+    }
+  },
+  "paired_vs_mms-swh": {
+    "real": {
+      "delta_median": -0.03470597509408796,
+      "delta_ci95": [
+        -0.0519979959365623,
+        -0.012839305722873295
+      ],
+      "p_value_one_sided": 0.0045
+    },
+    "omnivoice-female": {
+      "delta_median": -0.07352389863318556,
+      "delta_ci95": [
+        -0.08404271507670254,
+        -0.06141014177734028
+      ],
+      "p_value_one_sided": 0.0
+    },
+    "omnivoice-male": {
+      "delta_median": -0.07075704290871199,
+      "delta_ci95": [
+        -0.08089515431598292,
+        -0.06029876756679997
+      ],
+      "p_value_one_sided": 0.0
+    },
+    "mms-kik": {
+      "delta_median": 0.11060036116944451,
+      "delta_ci95": [
+        0.098921336819426,
+        0.12187138335344307
+      ],
+      "p_value_one_sided": 1.0
+    }
+  }
+}

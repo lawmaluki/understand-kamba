@@ -12,3 +12,8 @@ uvicorn*.pid
 uvicorn*.log
 tmp/
 /data/
+eval/data/
+paper/*.log
+paper/*.blg
+paper/*.aux
+__pycache__/
