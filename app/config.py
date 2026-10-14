@@ -29,6 +29,13 @@ class Settings:
     voice_max_seconds: int = int(os.getenv("VOICE_MAX_SECONDS", "20"))
     voice_upload_max_mb: int = int(os.getenv("VOICE_UPLOAD_MAX_MB", "5"))
     voice_uploads_per_hour: int = int(os.getenv("VOICE_UPLOADS_PER_HOUR", "120"))
+    # Translation corrections suggested by users (see app/corrections.py). Pushed
+    # to this private dataset; defaults to <voice dataset owner>/kamba-translation-corrections.
+    corrections_dataset_repo: str = os.getenv(
+        "CORRECTIONS_DATASET_REPO",
+        f"{voice_dataset_repo.split('/')[0]}/kamba-translation-corrections" if "/" in voice_dataset_repo else "",
+    )
+    corrections_per_hour: int = int(os.getenv("CORRECTIONS_PER_HOUR", "60"))
     max_audio_seconds: int = int(os.getenv("MAX_AUDIO_SECONDS", "60"))
     sample_rate: int = int(os.getenv("SAMPLE_RATE", "16000"))
 

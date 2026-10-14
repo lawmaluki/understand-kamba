@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
-from . import asr, audio, downloader, stats, tts, voice
+from . import asr, audio, corrections, downloader, stats, tts, voice
 from . import translate as translate_mod
 from .config import settings
 from .translate import ENGLISH, KIKAMBA, SWAHILI
@@ -227,6 +227,58 @@ def feedback(req: FeedbackRequest):
     return stats.record_feedback(req.rating, req.direction, req.text, req.translation)
 
 
+class SuggestionsRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=settings.max_translate_chars)
+    direction: Literal["en_to_kam", "kam_to_en"]
+    translation: str = Field("", max_length=2 * settings.max_translate_chars)
+
+
+class SuggestionsResponse(BaseModel):
+    suggestions: list[str]
+    model: Optional[str] = None
+
+
+@app.post("/translate/suggestions", response_model=SuggestionsResponse)
+def translate_suggestions(req: SuggestionsRequest):
+    """Other likely translations (the model's runners-up), offered as starting
+    points when a user corrects a translation."""
+    src, tgt = (ENGLISH, KIKAMBA) if req.direction == "en_to_kam" else (KIKAMBA, ENGLISH)
+    try:
+        alts, model = translate_mod.suggestions(req.text.strip(), src, tgt, current=req.translation)
+    except Exception as e:
+        raise HTTPException(500, f"could not get suggestions: {e}")
+    return SuggestionsResponse(suggestions=alts, model=model)
+
+
+class CorrectionRequest(BaseModel):
+    direction: Literal["en_to_kam", "kam_to_en"]
+    text: str = Field(max_length=settings.max_translate_chars)
+    translation: str = Field(max_length=2 * settings.max_translate_chars)
+    correction: str = Field(max_length=2 * settings.max_translate_chars)
+    origin: Literal["suggestion", "edited", "typed"] = "typed"
+    model: str = ""
+    dialect: str = ""
+
+
+def _client_ip(request: Request) -> str:
+    # Behind the Hugging Face proxy the client is the first X-Forwarded-For entry.
+    forwarded = request.headers.get("x-forwarded-for", "")
+    return forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
+
+
+@app.post("/corrections")
+def submit_correction(req: CorrectionRequest, request: Request):
+    """Store a user's correction of a translation (see app/corrections.py)."""
+    try:
+        corrections.check_rate_limit(_client_ip(request))
+        corrections.save_correction(**req.model_dump())
+    except corrections.RejectedCorrection as e:
+        raise HTTPException(422, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"could not save correction: {e}")
+    return {"ok": True}
+
+
 class VoicePrompt(BaseModel):
     id: str
     text: str
@@ -260,11 +312,8 @@ async def voice_recording(
     age_range: str = Form(""),
 ):
     """Store one contributed recording of a prompt sentence."""
-    # Behind the Hugging Face proxy the client is the first X-Forwarded-For entry.
-    forwarded = request.headers.get("x-forwarded-for", "")
-    client_ip = forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
     try:
-        voice.check_rate_limit(client_ip)
+        voice.check_rate_limit(_client_ip(request))
     except voice.RejectedRecording as e:
         raise HTTPException(429, str(e))
 

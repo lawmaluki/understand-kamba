@@ -65,8 +65,9 @@ To ask for deletion, tap **Ask to delete my recordings**. This opens a GitHub is
 
 ## 3. Improving translations
 
-- In the app, rate translations with thumbs up or thumbs down. Each rating is stored with the source text and translation in `data/feedback.jsonl` on the server, so that bad translations can be found and studied.
-- To suggest a correct translation, open an issue at https://github.com/lawmaluki/understand-kamba/issues with the source text, the app's output and your correction, and say which dialect you speak.
+- **Correct it in the app.** Give a translation a thumbs down and a box opens: *Help fix this translation*. It shows up to three other likely translations from the model; tap one, edit it if needed, or type the correct translation yourself, then **Send correction**. The selected dialect is saved with it.
+- Corrections are saved without your name to a private dataset (`lawmaluki/kamba-translation-corrections`). After a Kamba speaker approves them they become training pairs for the next fine-tuning run, and may be published with the project's open training data. Don't type personal details.
+- You can also open an issue at https://github.com/lawmaluki/understand-kamba/issues with the source text, the app's output and your correction.
 
 The most valuable thing for translation quality is a set of **everyday sentences with careful Kikamba translations** (see section 5). A few thousand such pairs could improve English → Kikamba substantially; the public data available today is mostly Bible text.
 
@@ -135,6 +136,17 @@ Respond promptly; aim for within a week.
 5. If a model was already trained on the recordings, note this in the reply and exclude the speaker from future training.
 6. Reply on the issue (without restating any personal details) and close it.
 
+### Reviewing translation corrections
+
+Users can type anything, so corrections are never trained on unreviewed. Every few hundred corrections:
+
+1. `python training/review_corrections.py export` (needs `HF_TOKEN`) writes a sheet to `training/data/review/` (never committed: it may contain personal details).
+2. Open it in Excel or Google Sheets. For each row put `y` in **approve** if the correction is right and contains nothing personal, `n` otherwise. You may fix the correction text. Save as tab-separated text.
+3. `python training/review_corrections.py import <sheet>` writes the approved pairs to `training/data/community/`.
+4. `python training/build_parallel.py`, commit, push, and rerun the fine-tuning notebook. Deploy the new model only if it beats the current one.
+
+Reject rows with names, phone numbers, addresses or anything else that identifies a person, and joke or abusive entries.
+
 ### Replacing the reference voices
 
 When a contributor explicitly agrees to be **the app's voice** (a separate, stronger consent than contributing recordings):
@@ -155,5 +167,6 @@ When a contributor explicitly agrees to be **the app's voice** (a separate, stro
 | FLORES-200 sentences (and the reading prompts) | CC-BY-SA 4.0 |
 | FLEURS audio (current reference voices) | CC-BY 4.0 |
 | Contributed recordings | Private; use limited by the consent version |
+| Translation corrections | Private until reviewed; approved pairs published in `training/data/community/` |
 
 Because of the NLLB and OmniVoice licences, the deployed service is non-commercial.

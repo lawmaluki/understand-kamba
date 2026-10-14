@@ -84,6 +84,29 @@ def nllb_generate(model, tokenizer, sentences: list[str], src_code: str, tgt_cod
     return [d.strip() for d in tokenizer.batch_decode(out, skip_special_tokens=True)]
 
 
+def nllb_nbest(model, tokenizer, sentences: list[str], src_code: str, tgt_code: str, k: int,
+               device: str = "cpu") -> list[list[str]]:
+    """The k best translations of each sentence from beam search, best first.
+    Same decoding settings as nllb_generate, so candidate 0 is the normal translation."""
+    import torch
+
+    with _nllb_lock:
+        tokenizer.src_lang = src_code
+        inputs = tokenizer(sentences, return_tensors="pt", padding=True).to(device)
+    max_new_tokens = int(inputs["input_ids"].shape[1] * 2) + 16
+    with torch.inference_mode():
+        out = model.generate(
+            **inputs,
+            forced_bos_token_id=tokenizer.convert_tokens_to_ids(tgt_code),
+            num_beams=max(settings.nllb_num_beams, k),
+            num_return_sequences=k,
+            max_new_tokens=max_new_tokens,
+            no_repeat_ngram_size=4,
+        )
+    decoded = [d.strip() for d in tokenizer.batch_decode(out, skip_special_tokens=True)]
+    return [decoded[i * k:(i + 1) * k] for i in range(len(sentences))]
+
+
 # Optional faster translator, installed by space/server.py when a GPU model is
 # configured: (sentences, src_code, tgt_code) -> list[str]. If it raises (e.g.
 # the Space's GPU quota is used up) the local CPU model is used instead.
@@ -94,6 +117,15 @@ _accelerator_name = None
 def set_accelerator(fn, name: str) -> None:
     global _accelerator, _accelerator_name
     _accelerator, _accelerator_name = fn, name
+
+
+# The same for suggestions: (sentences, src_code, tgt_code, k) -> k candidates per sentence.
+_nbest_accelerator = None
+
+
+def set_nbest_accelerator(fn) -> None:
+    global _nbest_accelerator
+    _nbest_accelerator = fn
 
 
 def _nllb_translate(text: str, source_language: str, target_language: str) -> tuple[str, str]:
@@ -116,6 +148,40 @@ def _nllb_translate(text: str, source_language: str, target_language: str) -> tu
 
     _load_nllb()
     return " ".join(nllb_generate(_nllb_model, _nllb_tokenizer, sentences, src, tgt)), settings.nllb_model_id
+
+
+def suggestions(text: str, source_language: str, target_language: str, current: str = "",
+                n: int = 3) -> tuple[list[str], str]:
+    """Up to n other likely translations of `text` (the runners-up of the beam
+    search), excluding `current`. Shown to users as starting points when they
+    correct a translation. Empty for the Anthropic backend."""
+    if settings.translation_backend == "anthropic":
+        return [], settings.translation_model
+    sentences = split_sentences(text)
+    if not sentences:
+        return [], settings.nllb_model_id
+    src, tgt = _NLLB_LANG_CODES[source_language], _NLLB_LANG_CODES[target_language]
+    k = n + 2  # the best one is usually `current`; ask for spares to survive de-duplication
+    cands, model_id = None, settings.nllb_model_id
+    if _nbest_accelerator is not None:
+        try:
+            cands, model_id = _nbest_accelerator(sentences, src, tgt, k), _accelerator_name
+        except Exception as e:
+            print(f"[translate] GPU suggestions unavailable ({e}); using {settings.nllb_model_id}", flush=True)
+    if cands is None:
+        _load_nllb()
+        cands = nllb_nbest(_nllb_model, _nllb_tokenizer, sentences, src, tgt, k)
+
+    # Alternative i uses each sentence's i-th candidate (or its last one).
+    seen = {" ".join(current.split()).lower()}
+    out = []
+    for i in range(k):
+        alt = " ".join(c[min(i, len(c) - 1)] for c in cands)
+        key = " ".join(alt.split()).lower()
+        if alt and key not in seen:
+            seen.add(key)
+            out.append(alt)
+    return out[:n], model_id
 
 
 _anthropic_client = None

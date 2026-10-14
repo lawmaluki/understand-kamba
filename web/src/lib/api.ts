@@ -124,3 +124,23 @@ export async function sendFeedback(feedback: {
 }): Promise<Stats> {
   return (await postJson("/feedback", feedback)).json();
 }
+
+/** Other likely translations, shown as starting points when correcting one. */
+export async function getSuggestions(text: string, direction: Direction, translation: string): Promise<string[]> {
+  const data = await (await postJson("/translate/suggestions", { text, direction, translation })).json();
+  return Array.isArray(data.suggestions) ? data.suggestions : [];
+}
+
+export type CorrectionOrigin = "suggestion" | "edited" | "typed";
+
+/** Save a user's correction of a translation (training data, reviewed before use). */
+export async function sendCorrection(correction: {
+  direction: Direction;
+  text: string;
+  translation: string;
+  correction: string;
+  origin: CorrectionOrigin;
+  dialect: string;
+}): Promise<void> {
+  await postJson("/corrections", correction);
+}

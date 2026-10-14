@@ -158,6 +158,8 @@ Backend settings are read from environment variables, normally supplied through 
 | VOICE_MAX_SECONDS | 20 | Longest recording accepted |
 | VOICE_UPLOAD_MAX_MB | 5 | Largest recording upload accepted |
 | VOICE_UPLOADS_PER_HOUR | 120 | Recordings accepted per connection per hour |
+| CORRECTIONS_DATASET_REPO | <voice dataset owner>/kamba-translation-corrections | Private Hugging Face dataset that translation corrections are pushed to every 5 minutes. Empty (no VOICE_DATASET_REPO either) keeps them local under data/corrections. |
+| CORRECTIONS_PER_HOUR | 60 | Corrections accepted per connection per hour |
 | NLLB_GPU_MODEL_ID | (empty) | Hugging Face Space only (space/server.py): translation model run on the ZeroGPU GPU, e.g. facebook/nllb-200-3.3B. NLLB_MODEL_ID becomes the CPU fallback. |
 | TTS_GPU_MODEL_ID | (empty) | Hugging Face Space only: voice model run on the ZeroGPU GPU, k2-fsa/OmniVoice, cloning the speakers in app/data/voices. TTS_MODEL_ID becomes the fallback. |
 
@@ -237,6 +239,28 @@ Errors: 422 if the text is empty or too long, or voice is anything else; 500 if 
 ```
 
 translations counts successful /translate calls.
+
+### POST /translate/suggestions
+
+Other likely translations of a text (the runners-up of the beam search), offered as starting points when a user corrects a translation. Runs on the Space's GPU when available.
+
+```
+{ "text": "Ilinda yii ni yaasa.", "direction": "kam_to_en", "translation": "This line is long." }
+→ { "suggestions": ["...", "...", "..."], "model": "lawmaluki/nllb-200-1.3B-kamba-ft" }
+```
+
+`translation` (the current one) is left out of the suggestions. Empty with the Anthropic backend.
+
+### POST /corrections
+
+Saves a user's correction (see app/corrections.py and CONTRIBUTOR-DATA-GUIDE.md).
+
+```
+{ "direction": "kam_to_en", "text": "source", "translation": "model output", "correction": "the right translation",
+  "origin": "suggestion | edited | typed", "dialect": "machakos" }
+```
+
+Errors: 422 if the correction is empty or the same as the translation, 429 after CORRECTIONS_PER_HOUR submissions from one connection.
 
 ### POST /feedback
 

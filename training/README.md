@@ -8,6 +8,7 @@ Improve the translator using only existing public data, on a free Kaggle or Cola
 | `filter_opus.py` | Picks the usable part of the 1.6M machine-mined OPUS pairs → `data/opus_filtered.tsv.gz` (14,818 pairs) |
 | `finetune_nllb.py` | Fine-tunes NLLB with LoRA and compares it with the original model |
 | `finetune_kaggle.ipynb` | Notebook that runs all of it on a free GPU |
+| `review_corrections.py` | Exports corrections users sent from the app for review, and imports the approved ones into `data/community/` |
 
 ## How to run the fine-tuning
 

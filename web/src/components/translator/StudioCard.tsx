@@ -6,6 +6,7 @@ import StudioHeader from "./StudioHeader";
 import ContentArea from "./ContentArea";
 import DialectSelector from "./DialectSelector";
 import FooterControls, { type Rating } from "./FooterControls";
+import CorrectionBox from "./CorrectionBox";
 import SavedTranslations from "./SavedTranslations";
 import ContributeCta from "@/components/contribute/ContributeCta";
 import { getStats, sendFeedback, translateText, type Direction, type Stats } from "@/lib/api";
@@ -17,6 +18,8 @@ interface Result {
   source: string;
   translation: string;
   rating: Rating | null;
+  /** The correction box is open (after a thumbs-down, until sent or dismissed). */
+  correcting?: boolean;
 }
 
 export default function StudioCard() {
@@ -98,11 +101,11 @@ export default function StudioCard() {
   async function handleRate(rating: Rating) {
     if (!result || result.rating) return;
     const rated = result;
-    setResult({ ...rated, rating });
+    setResult({ ...rated, rating, correcting: rating === "down" });
     try {
       setStats(await sendFeedback({ rating, direction: rated.direction, text: rated.source, translation: rated.translation }));
     } catch (err) {
-      setResult((r) => (r === null || r.source !== rated.source ? r : { ...r, rating: null }));
+      setResult((r) => (r === null || r.source !== rated.source ? r : { ...r, rating: null, correcting: false }));
       showNotice(err instanceof Error ? err.message : "Couldn't send your rating.");
     }
   }
@@ -138,6 +141,19 @@ export default function StudioCard() {
               onRate={handleRate}
               onNotice={showNotice}
             />
+            {result?.correcting && (
+              <CorrectionBox
+                key={`${result.direction}:${result.source}`}
+                direction={result.direction}
+                source={result.source}
+                translation={result.translation}
+                dialect={dialectId}
+                onDone={(message) => {
+                  setResult((r) => (r ? { ...r, correcting: false } : r));
+                  if (message) showNotice(message);
+                }}
+              />
+            )}
           </div>
         </div>
         <p className="py-3 text-center text-sm font-semibold text-neutral-900 sm:py-3.5">

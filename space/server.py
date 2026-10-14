@@ -58,7 +58,12 @@ if GPU_MODEL_ID:
     def _translate_on_gpu(sentences: list[str], src_code: str, tgt_code: str) -> list[str]:
         return translate_mod.nllb_generate(_gpu_model, _gpu_tokenizer, sentences, src_code, tgt_code, device="cuda")
 
+    @spaces.GPU(duration=20)
+    def _nbest_on_gpu(sentences: list[str], src_code: str, tgt_code: str, k: int) -> list[list[str]]:
+        return translate_mod.nllb_nbest(_gpu_model, _gpu_tokenizer, sentences, src_code, tgt_code, k, device="cuda")
+
     translate_mod.set_accelerator(_translate_on_gpu, GPU_MODEL_ID)
+    translate_mod.set_nbest_accelerator(_nbest_on_gpu)
     print(f"[startup] translation on GPU: {GPU_MODEL_ID} (CPU fallback loads on first use)", flush=True)
 
 

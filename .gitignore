@@ -17,3 +17,5 @@ paper/*.log
 paper/*.blg
 paper/*.aux
 __pycache__/
+# Raw user corrections awaiting review (may contain personal details) -- never commit
+training/data/review/

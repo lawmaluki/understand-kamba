@@ -46,6 +46,7 @@ Use the dialect selector to mark which variety you speak: Machakos, Kitui or Mak
 Under each translation you can:
 
 - **Thumbs up / thumbs down** — tell us whether the translation was good. Ratings, with the sentence and its translation, help us find and fix mistakes.
+- **Help fix it** — after a thumbs down, a box shows other possible translations. Tap one (and edit it if needed) or type the correct translation, then **Send correction**. Corrections are checked by a Kamba speaker and used to teach the translator.
 - **Copy** — copy the translation to paste elsewhere.
 - **Save** — keep it under **Saved translations**. Saved translations stay in this browser only; they are not sent anywhere and disappear if you clear your browser data.
 - **Share** — create a picture card of your translation for WhatsApp, Instagram, X or Facebook. Choose **Post 4:5** or **Story 9:16**, then **Share**, **Copy image** or **Download**.
