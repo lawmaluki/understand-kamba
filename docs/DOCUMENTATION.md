@@ -160,6 +160,10 @@ Backend settings are read from environment variables, normally supplied through 
 | VOICE_UPLOADS_PER_HOUR | 120 | Recordings accepted per connection per hour |
 | CORRECTIONS_DATASET_REPO | <voice dataset owner>/kamba-translation-corrections | Private Hugging Face dataset that translation corrections are pushed to every 5 minutes. Empty (no VOICE_DATASET_REPO either) keeps them local under data/corrections. |
 | CORRECTIONS_PER_HOUR | 60 | Corrections accepted per connection per hour |
+| TRANSLATE_PER_HOUR | 200 | Translations per visitor (IP address) per hour; more get HTTP 429 with a "please wait" message. Protects the shared GPU quota. 0 = no limit. |
+| SUGGESTIONS_PER_HOUR | 60 | Correction-box suggestion requests per visitor per hour |
+| SYNTHESIZE_PER_HOUR | 100 | Read-aloud requests per visitor per hour |
+| TRANSCRIBE_PER_HOUR | 60 | Speech-to-text requests (upload or link) per visitor per hour |
 | NLLB_GPU_MODEL_ID | (empty) | Hugging Face Space only (space/server.py): translation model run on the ZeroGPU GPU, e.g. lawmaluki/nllb-200-1.3B-kamba-ft. NLLB_MODEL_ID becomes the CPU fallback. |
 | STATS_DATASET_REPO | <voice dataset owner>/kamba-app-stats | Private dataset the usage counts and ratings are synced to every 5 minutes, so they survive restarts. Empty keeps them local only. |
 | TTS_GPU_MODEL_ID | (empty) | Hugging Face Space only: voice model run on the ZeroGPU GPU, k2-fsa/OmniVoice, cloning the speakers in app/data/voices. TTS_MODEL_ID becomes the fallback. |
@@ -340,7 +344,7 @@ Measured on the full FLORES-200 devtest (1,012 sentences; chrF++, higher is bett
 
 It still gets key words wrong ("Ilinda yii ni yaasa", *this dress is long*, comes out as "this line is long"). Users can now correct translations in the app (section 9); reviewed corrections are used to retrain it.
 
-Known issue: the sentence splitter also splits after initials and titles ("John F. Kennedy", "Dr."), which affects about 2% of sentences.
+The sentence splitter no longer breaks after initials, titles or dotted abbreviations ("John F. Kennedy", "Dr.", "p.m."); on FLORES devtest such wrong splits fell from 24 to 0 English lines and from 14 to 0 Kikamba lines. (The scores above were measured with the old splitter.)
 
 ### Speech recognition: w2v-BERT Kamba
 
@@ -448,6 +452,6 @@ The accent colour is butter yellow (#F8E27A), defined as the butter-50 to butter
 - The voices clone FLEURS speakers who did not consent to being the app's voice; replace them with consenting speakers (CONTRIBUTOR-DATA-GUIDE.md, section 7).
 - Dialect selection does not change the output; there are no per-dialect models.
 - No formal-register option.
-- No login, rate limiting or abuse protection, and CORS allows any origin. Tighten these before deploying publicly.
+- Per-visitor hourly limits protect the GPU quota (section 6), but they are kept in memory per server process and reset on restart; there is no login, and CORS allows any origin.
 - Stats storage supports a single backend process (synced to a dataset every 5 minutes); move it to a database before scaling.
 - No automated tests or deployment pipeline yet.

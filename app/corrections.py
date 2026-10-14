@@ -10,7 +10,7 @@ pushes that folder to the (private) dataset every few minutes, so corrections
 survive Space restarts. Each server process writes to its own session folder.
 
 Nothing identifies the person: no name, account or IP address is stored (the
-IP is held in memory for an hour only, to limit how much one connection can send).
+IP is held in memory for an hour only, by app/ratelimit.py).
 """
 import json
 import os
@@ -18,7 +18,6 @@ import secrets
 import threading
 import time
 import uuid
-from collections import defaultdict, deque
 
 from .config import settings
 
@@ -33,7 +32,6 @@ _session_dir = os.path.join(settings.data_dir, "corrections", _SESSION)
 _scheduler = None
 _scheduler_lock = threading.Lock()
 _write_lock = threading.Lock()
-_recent: dict[str, deque] = defaultdict(deque)  # client IP -> submission times
 
 
 class RejectedCorrection(ValueError):
@@ -60,14 +58,6 @@ def _get_scheduler():
         return _scheduler
 
 
-def check_rate_limit(client_ip: str) -> None:
-    now = time.time()
-    times = _recent[client_ip]
-    while times and now - times[0] > 3600:
-        times.popleft()
-    if len(times) >= settings.corrections_per_hour:
-        raise RejectedCorrection("Too many corrections from this connection in the last hour. Please try again later.")
-    times.append(now)
 
 
 def _norm(text: str) -> str:

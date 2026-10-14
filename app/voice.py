@@ -17,7 +17,6 @@ import secrets
 import threading
 import time
 import uuid
-from collections import defaultdict, deque
 
 import numpy as np
 import soundfile as sf
@@ -37,7 +36,6 @@ _session_dir = os.path.join(settings.data_dir, "voice", _SESSION)
 _scheduler = None
 _scheduler_lock = threading.Lock()
 _write_lock = threading.Lock()
-_recent: dict[str, deque] = defaultdict(deque)  # client IP -> upload times, for rate limiting
 
 
 class RejectedRecording(ValueError):
@@ -72,14 +70,6 @@ def _get_scheduler():
         return _scheduler
 
 
-def check_rate_limit(client_ip: str) -> None:
-    now = time.time()
-    times = _recent[client_ip]
-    while times and now - times[0] > 3600:
-        times.popleft()
-    if len(times) >= settings.voice_uploads_per_hour:
-        raise RejectedRecording("Too many recordings from this connection in the last hour. Please try again later.")
-    times.append(now)
 
 
 def save_recording(

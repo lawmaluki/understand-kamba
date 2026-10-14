@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
-from . import asr, audio, corrections, downloader, stats, tts, voice
+from . import asr, audio, corrections, downloader, ratelimit, stats, tts, voice
 from . import translate as translate_mod
 from .config import settings
 from .translate import ENGLISH, KIKAMBA, SWAHILI
@@ -142,9 +142,10 @@ def _process_audio_file(src_path: str, translate: bool = True) -> TranscribeResp
 
 
 @app.post("/transcribe", response_model=TranscribeResponse)
-async def transcribe(file: UploadFile = File(...), translate: bool = True):
+async def transcribe(request: Request, file: UploadFile = File(...), translate: bool = True):
     """Kikamba audio -> transcript. Pass ?translate=false to skip the
     Swahili/English translations (the web UI translates separately)."""
+    ratelimit.check(request, "transcribe", settings.transcribe_per_hour, "speech-to-text")
     src_path = await _save_upload(file, settings.upload_max_mb)
     try:
         return await run_in_threadpool(_process_audio_file, src_path, translate)
@@ -155,7 +156,8 @@ async def transcribe(file: UploadFile = File(...), translate: bool = True):
 
 
 @app.post("/transcribe-url", response_model=TranscribeResponse)
-def transcribe_url(req: TranscribeUrlRequest):
+def transcribe_url(req: TranscribeUrlRequest, request: Request):
+    ratelimit.check(request, "transcribe", settings.transcribe_per_hour, "speech-to-text")
     try:
         src_path = downloader.download_audio_from_url(req.url)
     except Exception as e:
@@ -170,7 +172,8 @@ def transcribe_url(req: TranscribeUrlRequest):
 
 
 @app.post("/translate", response_model=TranslateResponse)
-def translate_text(req: TranslateRequest):
+def translate_text(req: TranslateRequest, request: Request):
+    ratelimit.check(request, "translate", settings.translate_per_hour, "translation")
     text = req.text.strip()
     if not text:
         raise HTTPException(400, "text must not be empty")
@@ -202,7 +205,8 @@ def translate_text(req: TranslateRequest):
 
 
 @app.post("/synthesize", response_class=Response)
-def synthesize(req: SynthesizeRequest):
+def synthesize(req: SynthesizeRequest, request: Request):
+    ratelimit.check(request, "synthesize", settings.synthesize_per_hour, "read-aloud")
     """Kikamba text -> WAV. The X-Voice-Model header names the model that spoke
     (the GPU Kamba voice or the Swahili fallback); see app/tts.py."""
     try:
@@ -239,7 +243,8 @@ class SuggestionsResponse(BaseModel):
 
 
 @app.post("/translate/suggestions", response_model=SuggestionsResponse)
-def translate_suggestions(req: SuggestionsRequest):
+def translate_suggestions(req: SuggestionsRequest, request: Request):
+    ratelimit.check(request, "suggestions", settings.suggestions_per_hour, "suggestion")
     """Other likely translations (the model's runners-up), offered as starting
     points when a user corrects a translation."""
     src, tgt = (ENGLISH, KIKAMBA) if req.direction == "en_to_kam" else (KIKAMBA, ENGLISH)
@@ -260,17 +265,11 @@ class CorrectionRequest(BaseModel):
     dialect: str = ""
 
 
-def _client_ip(request: Request) -> str:
-    # Behind the Hugging Face proxy the client is the first X-Forwarded-For entry.
-    forwarded = request.headers.get("x-forwarded-for", "")
-    return forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
-
-
 @app.post("/corrections")
 def submit_correction(req: CorrectionRequest, request: Request):
     """Store a user's correction of a translation (see app/corrections.py)."""
+    ratelimit.check(request, "corrections", settings.corrections_per_hour, "correction")
     try:
-        corrections.check_rate_limit(_client_ip(request))
         corrections.save_correction(**req.model_dump())
     except corrections.RejectedCorrection as e:
         raise HTTPException(422, str(e))
@@ -312,10 +311,7 @@ async def voice_recording(
     age_range: str = Form(""),
 ):
     """Store one contributed recording of a prompt sentence."""
-    try:
-        voice.check_rate_limit(_client_ip(request))
-    except voice.RejectedRecording as e:
-        raise HTTPException(429, str(e))
+    ratelimit.check(request, "voice", settings.voice_uploads_per_hour, "recording")
 
     src_path = await _save_upload(file, settings.voice_upload_max_mb)
     try:

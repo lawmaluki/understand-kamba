@@ -36,6 +36,12 @@ class Settings:
         f"{voice_dataset_repo.split('/')[0]}/kamba-translation-corrections" if "/" in voice_dataset_repo else "",
     )
     corrections_per_hour: int = int(os.getenv("CORRECTIONS_PER_HOUR", "60"))
+    # Per-visitor hourly limits on the expensive routes (app/ratelimit.py); 0 = no limit.
+    # Generous for people, but stop one visitor or bot using up the shared GPU quota.
+    translate_per_hour: int = int(os.getenv("TRANSLATE_PER_HOUR", "200"))
+    suggestions_per_hour: int = int(os.getenv("SUGGESTIONS_PER_HOUR", "60"))
+    synthesize_per_hour: int = int(os.getenv("SYNTHESIZE_PER_HOUR", "100"))
+    transcribe_per_hour: int = int(os.getenv("TRANSCRIBE_PER_HOUR", "60"))
     # Usage counts and ratings (see app/stats.py), synced to this private dataset so they
     # survive restarts; defaults to <voice dataset owner>/kamba-app-stats. Empty = local only.
     stats_dataset_repo: str = os.getenv(

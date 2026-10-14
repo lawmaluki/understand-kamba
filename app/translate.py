@@ -57,11 +57,60 @@ def _load_nllb():
 # Split after sentence-final punctuation followed by whitespace. NLLB is
 # trained on single sentences; feeding it a paragraph makes it drop or
 # hallucinate clauses, so each sentence is translated on its own.
-_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+#
+# A full stop doesn't end a sentence after an initial ("John F. Kennedy"), a
+# title or common abbreviation ("Dr.", "etc.") or a dotted abbreviation
+# ("p.m.", "U.S."), and "..." only ends one before a capital letter. Lower-case
+# sentence starts are common in Kikamba and in casual typing, so they still
+# split. A piece with no letters (a stray "." or "...") is glued back on
+# rather than translated alone.
+_SENTENCE_END = re.compile(r"[.!?]+[\"'”’)\]]*\s+")
+_ABBREVIATIONS = {
+    "dr", "mr", "mrs", "ms", "prof", "st", "jr", "sr", "gen", "lt", "col", "capt", "sgt", "rev", "hon",
+    "vs", "etc", "no", "nos", "vol", "fig", "mt", "ft", "approx", "dept", "est", "inc", "ltd", "co",
+    "corp", "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
+}
+
+
+def _ends_sentence(text: str, end: int, nxt: int) -> bool:
+    """Whether the punctuation ending at `end` (followed by whitespace up to `nxt`) ends a sentence."""
+    if text[end - 1] in "!?":
+        return True
+    if text[end - 3:end] == "...":
+        rest = text[nxt:].lstrip("\"'“‘(")
+        return not rest or not rest[0].islower()
+    word = re.search(r"(\S+)\.$", text[:end])
+    if word:
+        token = word.group(1).lstrip("\"'“‘(")
+        if "." in token or (len(token) == 1 and token.isalpha()) or token.lower() in _ABBREVIATIONS:
+            return False
+    return True
 
 
 def split_sentences(text: str) -> list[str]:
-    return [s.strip() for s in _SENTENCE_SPLIT.split(text.strip()) if s.strip()]
+    text = text.strip()
+    pieces, start = [], 0
+    for m in _SENTENCE_END.finditer(text):
+        punct_end = m.start() + len(re.match(r"[.!?]+", m.group()).group())  # before any closing quote
+        if _ends_sentence(text, punct_end, m.end()):
+            pieces.append(text[start:m.end()].strip())
+            start = m.end()
+    pieces.append(text[start:].strip())
+    out, carry = [], ""
+    for p in pieces:
+        if not p:
+            continue
+        if not any(c.isalpha() for c in p):  # a stray "." or "...": keep it with a neighbouring sentence
+            if out:
+                out[-1] = f"{out[-1]} {p}"
+            else:
+                carry = f"{carry} {p}".strip()
+            continue
+        out.append(f"{carry} {p}".strip())
+        carry = ""
+    if carry:
+        out.append(carry)
+    return out
 
 
 def nllb_generate(model, tokenizer, sentences: list[str], src_code: str, tgt_code: str, device: str = "cpu") -> list[str]:
