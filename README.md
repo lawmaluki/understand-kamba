@@ -7,7 +7,8 @@ Open English ⇄ Kikamba translation, Kikamba speech recognition and a Kamba voi
 
 | Feature | Model | Where it runs |
 |---|---|---|
-| English ⇄ Kikamba, Kikamba → Swahili + English | Meta NLLB-200 3.3B (fallback: distilled 1.3B; local default: distilled 600M) | Hugging Face ZeroGPU |
+| English ⇄ Kikamba, Kikamba → Swahili + English | NLLB-200 1.3B fine-tuned for Kikamba ([lawmaluki/nllb-200-1.3B-kamba-ft](https://huggingface.co/lawmaluki/nllb-200-1.3B-kamba-ft)); local default: distilled 600M | Hugging Face ZeroGPU (CPU fallback) |
+| Correcting translations | After a thumbs-down: the model's other suggestions, or type the right one → private dataset, reviewed, used for retraining | CPU / ZeroGPU |
 | Kikamba speech → text | `FarmerlineML/w2v-bert-2.0_kamba` | CPU |
 | Kikamba text → speech (Woman / Man) | `k2-fsa/OmniVoice` cloning two FLEURS Kamba speakers (fallback: MMS Swahili voice) | ZeroGPU |
 | Voice contributions | `/contribute` page → private dataset | CPU |
@@ -48,7 +49,7 @@ npm run dev
 
 Open http://localhost:3000. The web app calls `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:8000`; see `web/.env.local.example`). Point it at the hosted API to skip running models locally.
 
-Models download on first use (about 5 GB locally with the defaults). Locally the voice is the MMS Swahili fallback; OmniVoice and NLLB-3.3B run only on the Space's GPU.
+Models download on first use (about 5 GB locally with the defaults). Locally the voice is the MMS Swahili fallback and translation uses the 600M model; OmniVoice and the fine-tuned translator run on the Space.
 
 ## Project layout
 

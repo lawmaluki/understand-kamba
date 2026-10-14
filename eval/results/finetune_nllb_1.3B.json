@@ -1,0 +1,39 @@
+{
+  "source": "eval_report.json of https://huggingface.co/lawmaluki/nllb-200-1.3B-kamba-ft (written by training/finetune_nllb.py on a Kaggle T4)",
+  "test_sets": {
+    "stories": "91 sentences from 10 GlotStoryBook stories held out by story (seed 1234)",
+    "flores_devtest": "FLORES-200 devtest, 1,012 sentences"
+  },
+  "metric": "chrF++ (sacrebleu CHRF word_order=2), whole-line decoding with app/translate.py nllb_generate (beam 5, no_repeat_ngram_size 4), no sentence splitting",
+  "leakage_check": {
+    "stories": "2/91 test pairs have a >=80%-similar sentence in training (common phrases)",
+    "flores_devtest": "2/1012"
+  },
+  "args": {
+    "model": "facebook/nllb-200-distilled-1.3B",
+    "out": "nllb-kam-ft",
+    "keep_frac": 0.6,
+    "clean_repeat": 3,
+    "test_stories": 10,
+    "epochs": 2,
+    "lr": 0.0002,
+    "batch": 4,
+    "grad_accum": 8,
+    "lora_r": 16,
+    "skip_base_eval": false,
+    "max_steps": -1,
+    "smoke": false
+  },
+  "base": {
+    "stories/kam_to_en": 25.52,
+    "stories/en_to_kam": 26.78,
+    "flores_devtest/kam_to_en": 34.09,
+    "flores_devtest/en_to_kam": 27.66
+  },
+  "finetuned": {
+    "stories/kam_to_en": 37.09,
+    "stories/en_to_kam": 29.24,
+    "flores_devtest/kam_to_en": 44.33,
+    "flores_devtest/en_to_kam": 33.41
+  }
+}

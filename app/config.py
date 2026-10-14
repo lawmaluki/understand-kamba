@@ -36,6 +36,12 @@ class Settings:
         f"{voice_dataset_repo.split('/')[0]}/kamba-translation-corrections" if "/" in voice_dataset_repo else "",
     )
     corrections_per_hour: int = int(os.getenv("CORRECTIONS_PER_HOUR", "60"))
+    # Usage counts and ratings (see app/stats.py), synced to this private dataset so they
+    # survive restarts; defaults to <voice dataset owner>/kamba-app-stats. Empty = local only.
+    stats_dataset_repo: str = os.getenv(
+        "STATS_DATASET_REPO",
+        f"{voice_dataset_repo.split('/')[0]}/kamba-app-stats" if "/" in voice_dataset_repo else "",
+    )
     max_audio_seconds: int = int(os.getenv("MAX_AUDIO_SECONDS", "60"))
     sample_rate: int = int(os.getenv("SAMPLE_RATE", "16000"))
 

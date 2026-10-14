@@ -248,6 +248,13 @@ How it runs:
 
 Caveats: the FLEURS speakers recorded for research rather than to be a product voice, so the clips should be replaced with consenting speakers before wider use (app/data/voices/README.md); OmniVoice's weights are non-commercial (CC-BY-NC); and its accuracy figures may be flattered because the speech model used to score it may also have trained on FLEURS.
 
+### 10.4 Update, 14 October 2026: a fine-tuned translator, corrections and lasting stats
+
+- **Translation.** The full FLORES evaluation (docs/DOCUMENTATION.md, section 8) showed NLLB-3.3B was significantly *worse* than the distilled 1.3B model for English → Kikamba. The 1.3B model was then fine-tuned on existing public data on a free Kaggle GPU (training/), gaining about 10 chrF++ points for Kikamba → English. The Space now runs **lawmaluki/nllb-200-1.3B-kamba-ft** for both NLLB_GPU_MODEL_ID and NLLB_MODEL_ID. The model is public, so the Space needs no token to load it.
+- **Corrections.** After a thumbs-down the app offers the model's other likely translations and a box to type the right one. Corrections go to the private dataset lawmaluki/kamba-translation-corrections (created automatically), are reviewed with training/review_corrections.py, and feed the next training run.
+- **Stats.** Counts and ratings used to reset whenever the Space restarted. They are now synced to the private dataset lawmaluki/kamba-app-stats every 5 minutes and restored on start.
+- **Token.** The old HF_TOKEN had been deleted after it was exposed, which broke the dataset uploads (voice recordings included) until a new write token was set as the Space secret.
+
 ## 11. What next
 
 ### Short term

@@ -24,6 +24,20 @@ python paper/make_numbers.py
 \end{verbatim}
 \end{small}
 
+Fine-tuning (\S\ref{sec:finetune}) ran on a free Kaggle T4 through \texttt{training/finetune\_kaggle.ipynb}, which executes:
+
+\begin{small}
+\begin{verbatim}
+python training/build_parallel.py
+python training/filter_opus.py
+python training/finetune_nllb.py \
+       --model facebook/nllb-200-distilled-1.3B \
+       --out nllb-kam-ft
+\end{verbatim}
+\end{small}
+
+\texttt{finetune\_nllb.py} writes \texttt{eval\_report.json} (base and fine-tuned scores) next to the model; it is published with the model and copied to \texttt{eval/results/finetune\_nllb\_1.3B.json}. Training data are pinned to commit \texttt{9617445} of the community corpus; the held-out stories are chosen with seed 1234.
+
 \subsection{Frozen test sets}
 Fingerprints are SHA-256 over the lines of each file joined with \texttt{\textbackslash n} (\texttt{eval/common.py:sha256\_lines}). For FLEURS each line is \textit{file}\texttt{\textbackslash t}\textit{transcript}.
 
@@ -55,13 +69,15 @@ Path & Content \\
 \texttt{eval/outputs/asr/} & every ASR transcript \\
 \texttt{eval/outputs/tts/} & TTS sample and round-trip transcripts \\
 \texttt{eval/results/} & score reports (JSON) \\
+\texttt{training/data/} & clean pairs and filtered OPUS pairs used for fine-tuning \\
+\texttt{training/finetune\_nllb.py} & alignment filter, LoRA training, base vs fine-tuned evaluation \\
 \texttt{paper/numbers.tex} & every number in the paper, generated \\
 \bottomrule
 \end{tabular}
 \end{small}
 
 \subsection{Number-to-source map}
-Table~\ref{tab:mt} and the precision controls: \texttt{mt\_flores\_devtest.json}. Table~\ref{tab:asr} and the gender analysis: \texttt{asr\_fleurs\_test.json}. Table~\ref{tab:tts}: \texttt{tts\_asr\_roundtrip.json}. Tilde statistics: computed from the FLORES files and \texttt{eval/outputs/mt/}.
+Table~\ref{tab:mt} and the precision controls: \texttt{mt\_flores\_devtest.json}. Table~\ref{tab:asr} and the gender analysis: \texttt{asr\_fleurs\_test.json}. Table~\ref{tab:tts}: \texttt{tts\_asr\_roundtrip.json}. Table~\ref{tab:finetune}: \texttt{finetune\_nllb\_1.3B.json}. Tilde statistics: computed from the FLORES files and \texttt{eval/outputs/mt/}.
 
 \subsection{Checklist}
 \begin{itemize}\itemsep0pt
@@ -94,6 +110,7 @@ Issues we met putting the system on free Hugging Face hardware, recorded because
   \item \textbf{OmniVoice without a reference.} Without a clone prompt OmniVoice picks a voice per call, so consecutive sentences can sound like different people; we clone fixed FLEURS speakers instead.
   \item \textbf{Gikuyu voice for Kikamba.} The closely related MMS Gikuyu voice is markedly less intelligible on Kikamba text than the Swahili one (Table~\ref{tab:tts}).
   \item \textbf{Bible LoRA.} The public NLLB LoRA trained on Bible-verse pairs did not improve FLORES scores.
+  \item \textbf{Unfiltered mining scores.} Sorting OPUS NLLB by its mining score alone does not isolate good pairs: mid-ranked pairs still include chat noise and non-Kikamba text, which is why the language, religion and dual cross-entropy filters of \S\ref{sec:finetune} were needed.
   \item \textbf{Mined bitext.} OPUS NLLB v1 en--kam (1.63M pairs) is dominated by religious text and contains non-Kikamba target sides; we did not use it.
 \end{itemize}
 

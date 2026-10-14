@@ -15,7 +15,7 @@ ZeroGPU rules this file follows:
 
 Speech-to-text runs on CPU. Two optional GPU models, each with a CPU fallback
 used whenever the GPU can't be (e.g. quota used up):
-- NLLB_GPU_MODEL_ID (e.g. facebook/nllb-200-3.3B) for translation; fallback
+- NLLB_GPU_MODEL_ID (e.g. lawmaluki/nllb-200-1.3B-kamba-ft) for translation; fallback
   NLLB_MODEL_ID on CPU.
 - TTS_GPU_MODEL_ID (k2-fsa/OmniVoice) for the voice, cloning the Kamba
   speakers in app/data/voices; fallback the Swahili MMS voice (TTS_MODEL_ID).
@@ -49,7 +49,7 @@ if GPU_MODEL_ID:
     from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
     _gpu_tokenizer = AutoTokenizer.from_pretrained(GPU_MODEL_ID)
-    # float16 halves memory (3.3B: ~7 GB instead of ~13 GB) with no practical quality loss on GPU.
+    # float16 halves memory (1.3B: ~2.7 GB instead of ~5.5 GB) with no practical quality loss on GPU.
     _gpu_model = AutoModelForSeq2SeqLM.from_pretrained(GPU_MODEL_ID, torch_dtype=torch.float16).to("cuda").eval()
 
     # duration is the most GPU time a call may use; ZeroGPU only starts it if

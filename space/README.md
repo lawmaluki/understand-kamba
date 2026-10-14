@@ -19,7 +19,9 @@ translator. Source: https://github.com/lawmaluki/understand-kamba
 
 | Endpoint | Does | Model |
 |---|---|---|
-| `POST /translate` | English ⇄ Kikamba; the response's `model` field says which model answered | `facebook/nllb-200-3.3B` on ZeroGPU; falls back to `facebook/nllb-200-distilled-1.3B` on CPU when the GPU quota is used up |
+| `POST /translate` | English ⇄ Kikamba; the response's `model` field says which model answered | [`lawmaluki/nllb-200-1.3B-kamba-ft`](https://huggingface.co/lawmaluki/nllb-200-1.3B-kamba-ft) (NLLB-200 1.3B fine-tuned for Kikamba) on ZeroGPU; the same model on CPU when the GPU quota is used up |
+| `POST /translate/suggestions` | Other likely translations, offered when a user corrects one | same model |
+| `POST /corrections` | Saves a user's correction of a translation for review and retraining | — |
 | `POST /transcribe` | Kikamba speech → text | `FarmerlineML/w2v-bert-2.0_kamba` (CPU) |
 | `POST /synthesize` | Kikamba text → speech (`voice`: `female` or `male`); the `X-Voice-Model` header says which model spoke | `k2-fsa/OmniVoice` on ZeroGPU, cloning two Kamba speakers from Google FLEURS (CC-BY 4.0); falls back to `facebook/mms-tts-swh`, a Swahili voice on CPU |
 | `GET /voice/prompts`, `POST /voice/recordings` | Speakers contribute Kikamba recordings for a future Kamba voice | — |
@@ -31,15 +33,15 @@ Interactive docs: `/docs`.
 
 | Variable | Value | Purpose |
 |---|---|---|
-| `NLLB_GPU_MODEL_ID` | `facebook/nllb-200-3.3B` | Translation model run on the GPU. Remove to translate on CPU only. |
+| `NLLB_GPU_MODEL_ID` | `lawmaluki/nllb-200-1.3B-kamba-ft` | Translation model run on the GPU. Remove to translate on CPU only. |
 | `TTS_GPU_MODEL_ID` | `k2-fsa/OmniVoice` | Voice model run on the GPU, cloning the speakers in `app/data/voices`. Remove to use only the Swahili voice. |
-| `NLLB_MODEL_ID` | `facebook/nllb-200-distilled-1.3B` | CPU translation model (fallback when the GPU can't be used). |
+| `NLLB_MODEL_ID` | `lawmaluki/nllb-200-1.3B-kamba-ft` | CPU translation model (fallback when the GPU can't be used). |
 | `VOICE_DATASET_REPO` | `lawmaluki/kamba-voice-recordings` | Private dataset that contributed recordings are pushed to every 5 minutes. |
-| `HF_TOKEN` (secret) | a write token | Lets the Space push recordings to that dataset. |
+| `HF_TOKEN` (secret) | a write token | Lets the Space push recordings, corrections and usage stats to private datasets: `VOICE_DATASET_REPO`, `<owner>/kamba-translation-corrections` and `<owner>/kamba-app-stats` (override with `CORRECTIONS_DATASET_REPO` / `STATS_DATASET_REPO`). |
 
 API calls from the website carry no visitor token, so ZeroGPU charges them to one daily GPU
 quota shared by the whole Space. When it runs out, translations continue on the CPU model.
 
 Models load in the background after each start, so the first requests after a restart are
-slow. Stats reset when the Space restarts. The models are licensed CC-BY-NC 4.0
+slow. Usage stats are saved to the stats dataset, so they survive restarts. The models are licensed CC-BY-NC 4.0
 (non-commercial use only).

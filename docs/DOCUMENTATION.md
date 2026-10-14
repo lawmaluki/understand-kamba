@@ -23,7 +23,7 @@ All models are open and run on the backend itself, locally or on the Hugging Fac
 
 | Feature | How it works | Quality today |
 |---|---|---|
-| English to Kikamba, Kikamba to English | Meta NLLB-200: 3.3B on the hosted GPU (1.3B fallback), distilled 600M locally | FLORES chrF++ about 35 Kikamba → English and 24–28 English → Kikamba (section 8). Not yet rated by Kikamba speakers. |
+| English to Kikamba, Kikamba to English | Hosted: NLLB-200 1.3B fine-tuned for Kikamba (lawmaluki/nllb-200-1.3B-kamba-ft), on the GPU with the same model as CPU fallback. Locally: NLLB-200 distilled 600M | Fine-tuned model: FLORES chrF++ 44 Kikamba → English, 33 English → Kikamba; everyday sentences 37 and 29 (section 8). Not yet rated by Kikamba speakers. |
 | Kikamba speech to text | FarmerlineML/w2v-bert-2.0_kamba | 11% character / 33% word error rate on FLEURS test, ignoring ĩ/ũ. |
 | Read aloud | Hosted: OmniVoice (k2-fsa) on the Space's GPU, cloning a Kamba woman or man from Google FLEURS. Local, and fallback: Meta MMS Swahili voice | OmniVoice: Kamba pronunciation including ĩ and ũ; the Kamba speech model mishears about 7% of characters. Swahili fallback: Swahili accent, ĩ and ũ read as i and u (14%). |
 | Usage stats and ratings | Counted by the backend, stored in data/ | Real numbers. |
@@ -153,14 +153,15 @@ Backend settings are read from environment variables, normally supplied through 
 | TTS_MODEL_ID | facebook/mms-tts-swh | Voice model; any MMS/VITS text-to-speech model works |
 | UPLOAD_MAX_MB | 25 | Largest audio upload accepted |
 | TEMP_DIR | system temp folder/kam-backend | Where uploads are converted; files are deleted after each request |
-| DATA_DIR | data/ in the project folder | Where stats.json, feedback.jsonl and voice recordings (data/voice/) are kept |
+| DATA_DIR | data/ in the project folder | Where usage stats and ratings (data/stats/), corrections (data/corrections/) and voice recordings (data/voice/) are kept |
 | VOICE_DATASET_REPO | (empty) | Hugging Face dataset that contributed recordings are pushed to every 5 minutes, e.g. lawmaluki/kamba-voice-recordings. Empty keeps recordings local only. Needs HF_TOKEN with write access. |
 | VOICE_MAX_SECONDS | 20 | Longest recording accepted |
 | VOICE_UPLOAD_MAX_MB | 5 | Largest recording upload accepted |
 | VOICE_UPLOADS_PER_HOUR | 120 | Recordings accepted per connection per hour |
 | CORRECTIONS_DATASET_REPO | <voice dataset owner>/kamba-translation-corrections | Private Hugging Face dataset that translation corrections are pushed to every 5 minutes. Empty (no VOICE_DATASET_REPO either) keeps them local under data/corrections. |
 | CORRECTIONS_PER_HOUR | 60 | Corrections accepted per connection per hour |
-| NLLB_GPU_MODEL_ID | (empty) | Hugging Face Space only (space/server.py): translation model run on the ZeroGPU GPU, e.g. facebook/nllb-200-3.3B. NLLB_MODEL_ID becomes the CPU fallback. |
+| NLLB_GPU_MODEL_ID | (empty) | Hugging Face Space only (space/server.py): translation model run on the ZeroGPU GPU, e.g. lawmaluki/nllb-200-1.3B-kamba-ft. NLLB_MODEL_ID becomes the CPU fallback. |
+| STATS_DATASET_REPO | <voice dataset owner>/kamba-app-stats | Private dataset the usage counts and ratings are synced to every 5 minutes, so they survive restarts. Empty keeps them local only. |
 | TTS_GPU_MODEL_ID | (empty) | Hugging Face Space only: voice model run on the ZeroGPU GPU, k2-fsa/OmniVoice, cloning the speakers in app/data/voices. TTS_MODEL_ID becomes the fallback. |
 
 Web app setting (web/.env.local):
@@ -189,7 +190,7 @@ Response:
 
 ```
 { "text": "...", "translation_kam": "...", "translation_en": null, "translation_sw": null,
-  "model": "facebook/nllb-200-3.3B" }
+  "model": "lawmaluki/nllb-200-1.3B-kamba-ft" }
 ```
 
 Only the fields for the requested direction are filled in. model names the model that produced the translation; on the Hugging Face Space it shows whether the GPU model or the CPU fallback answered.
@@ -326,7 +327,18 @@ Measured on the full FLORES-200 devtest (1,012 sentences; chrF++, higher is bett
 - English → Kikamba: the 3.3B model is significantly *worse* than both smaller models. It writes longer output and adds content that is not in the source. The 1.3B model is the best choice for this direction.
 - Only 35% of the FLORES Kikamba reference sentences use ĩ and ũ, while the models always do, so raw English → Kikamba scores partly measure spelling. The folded column treats ĩ/i and ũ/u as the same.
 
-The local default is the 600M model; the hosted backend runs 3.3B on the Space's GPU with 1.3B as its CPU fallback (see docs/BACKEND-HOSTING-MIGRATION.md, section 10). Given the results above, English → Kikamba should move to the 1.3B model.
+**Fine-tuned model (live since 14 October 2026).** Since 1.3B was the best base model, it was fine-tuned with LoRA on about 10,200 existing public sentence pairs: human-translated children's stories, FLORES dev, and a filtered 0.5% of the OPUS web pairs (see training/README.md). Compared with the base 1.3B model on sentences it never saw (chrF++; details in eval/results/finetune_nllb_1.3B.json):
+
+| Test set | Direction | Base 1.3B | Fine-tuned | Change |
+|---|---|---|---|---|
+| 91 sentences from 10 held-out children's stories (everyday) | Kikamba → English | 25.5 | **37.1** | +11.6 |
+| | English → Kikamba | 26.8 | **29.2** | +2.5 |
+| FLORES devtest (1,012 sentences) | Kikamba → English | 34.1 | **44.3** | +10.2 |
+| | English → Kikamba | 27.7 | **33.4** | +5.7 |
+
+(These were scored line by line, without the app's sentence splitting, so the base numbers differ slightly from the table above.) Only 2 test sentences in each set have a near-copy in the training data. The hosted backend runs this model (lawmaluki/nllb-200-1.3B-kamba-ft) on the Space's GPU and also as its CPU fallback; the local default remains the 600M model. The model and its description are public on Hugging Face.
+
+It still gets key words wrong ("Ilinda yii ni yaasa", *this dress is long*, comes out as "this line is long"). Users can now correct translations in the app (section 9); reviewed corrections are used to retrain it.
 
 Known issue: the sentence splitter also splits after initials and titles ("John F. Kennedy", "Dr."), which affects about 2% of sentences.
 
@@ -350,15 +362,16 @@ To switch voices later, set TTS_MODEL_ID to any MMS/VITS model, for example a fu
 
 ### Measuring accuracy
 
-All numbers above come from eval/ (see eval/README.md for how to reproduce them) and are discussed in the research paper in paper/. FLORES and FLEURS are Wikipedia-style read text and do not reflect everyday conversation, and no Kikamba speaker has rated the output yet, so the most useful next steps are a small native-speaker rating study and a second test set of everyday sentences with speaker-written Kikamba translations. The ratings log in data/feedback.jsonl is a good source of sentences that went wrong.
+All numbers above come from eval/ (see eval/README.md for how to reproduce them) and are discussed in the research paper in paper/. FLORES and FLEURS are Wikipedia-style read text and do not reflect everyday conversation, and no Kikamba speaker has rated the output yet, so the most useful next steps are a small native-speaker rating study and a second test set of everyday sentences with speaker-written Kikamba translations. The ratings log (data/stats/feedback/) and the users' corrections are good sources of sentences that went wrong.
 
 ## 9. Data and privacy
 
 | Data | Where it is kept | Lifetime |
 |---|---|---|
 | Uploaded and recorded audio | TEMP_DIR on the backend machine | Deleted when the request finishes |
-| Translation count and rating totals | data/stats.json | Until deleted |
-| Each rating with its source text and translation | data/feedback.jsonl | Until deleted |
+| Translation count and rating totals | data/stats/stats.json; on the hosted backend also the private dataset lawmaluki/kamba-app-stats | Until deleted |
+| Each rating with its source text and translation | data/stats/feedback/; on the hosted backend also lawmaluki/kamba-app-stats | Until deleted |
+| Translation corrections (source, model translation, correction, dialect) | data/corrections/; on the hosted backend the private dataset lawmaluki/kamba-translation-corrections | Until deleted; approved pairs are published in training/data/community/ |
 | Saved translations | The browser's localStorage | Until removed in the app or browser data is cleared |
 | Contributed voice recordings and their metadata (sentence, anonymous ID, dialect, optional gender and age range) | data/voice/ locally; on the hosted backend, the private dataset lawmaluki/kamba-voice-recordings | Until deleted, for example on the contributor's request |
 | Contributor ID, details and progress | The contributor's browser (localStorage) | Until browser data is cleared |
@@ -431,10 +444,10 @@ The accent colour is butter yellow (#F8E27A), defined as the butter-50 to butter
 ## 12. Known limitations and next steps
 
 - Accuracy is measured automatically (section 8) but not yet by Kikamba speakers.
-- English → Kikamba should switch from the 3.3B to the 1.3B model (section 8).
+- Translation quality depends on everyday Kikamba data; grow it by reviewing user corrections and retraining (CONTRIBUTOR-DATA-GUIDE.md, section 7).
 - The voices clone FLEURS speakers who did not consent to being the app's voice; replace them with consenting speakers (CONTRIBUTOR-DATA-GUIDE.md, section 7).
 - Dialect selection does not change the output; there are no per-dialect models.
 - No formal-register option.
 - No login, rate limiting or abuse protection, and CORS allows any origin. Tighten these before deploying publicly.
-- Stats storage supports a single backend process; move it to a database before scaling.
+- Stats storage supports a single backend process (synced to a dataset every 5 minutes); move it to a database before scaling.
 - No automated tests or deployment pipeline yet.

@@ -68,6 +68,17 @@ if mt:
         macros["ctrlLocalSixHundred"] = f"{v['chrf++_600m']:.1f}"
         macros["ctrlLocalIdentical"] = str(v["identical_outputs"])
 
+# ---------------------------------------------------------------- fine-tuning
+ft = load("finetune_nllb_1.3B")
+if ft:
+    names = {"stories/kam_to_en": "StoryKamEn", "stories/en_to_kam": "StoryEnKam",
+             "flores_devtest/kam_to_en": "FloresKamEn", "flores_devtest/en_to_kam": "FloresEnKam"}
+    for k, n in names.items():
+        b, f = ft["base"][k], ft["finetuned"][k]
+        macros[f"ftBase{n}"] = f"{b:.1f}"
+        macros[f"ftTuned{n}"] = f"{f:.1f}"
+        macros[f"ftGain{n}"] = f"{f - b:+.1f}"
+
 # ---------------------------------------------------------------- ASR
 asr = load("asr_fleurs_test")
 if asr:
@@ -100,7 +111,7 @@ if tts:
         macros[f"tts{name}Row"] = (f"{pct(r['cer_k1'])}{sig} {{\\scriptsize{ci_pct(r['cer_k1_ci95'])}}} & "
                                    f"{pct(r['wer_k1'])} {{\\scriptsize{ci_pct(r['wer_k1_ci95'])}}}")
 
-ALL = ["ctrlFpThirtyTwo", "ctrlFpSixteen", "ctrlFpIdentical", "ctrlLocalN", "ctrlLocalSpace", "ctrlLocalLocal",
+ALL = [f"ft{kind}{n}" for kind in ("Base", "Tuned", "Gain") for n in ("StoryKamEn", "StoryEnKam", "FloresKamEn", "FloresEnKam")] + ["ctrlFpThirtyTwo", "ctrlFpSixteen", "ctrlFpIdentical", "ctrlLocalN", "ctrlLocalSpace", "ctrlLocalLocal",
        "ctrlLocalSixHundred", "ctrlLocalIdentical", "mtKamEnSixHundred", "mtKamEnThreeB", "mtEnKamThreeB", "mtTildeGain", "asrFarmerlineCER", "asrMmsCER",
        "asrNFemale", "asrNMale", "ttsOmniFemaleCER", "ttsOmniMaleCER", "ttsRealCER", "ttsSwhCER", "ttsKikCER"]
 for tag in ("KamEn", "EnKam"):
