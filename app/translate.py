@@ -18,6 +18,7 @@ Select with TRANSLATION_BACKEND in .env ("nllb" or "anthropic").
 """
 import re
 import threading
+import unicodedata
 
 from .config import settings
 
@@ -172,14 +173,18 @@ def suggestions(text: str, source_language: str, target_language: str, current: 
         _load_nllb()
         cands = nllb_nbest(_nllb_model, _nllb_tokenizer, sentences, src, tgt, k)
 
+    def key(t: str) -> str:
+        # ĩ/ũ can arrive precomposed or as i/u + a combining tilde; compare them as equal.
+        return " ".join(unicodedata.normalize("NFC", t).split()).lower()
+
     # Alternative i uses each sentence's i-th candidate (or its last one).
-    seen = {" ".join(current.split()).lower()}
+    seen = {key(current)}
     out = []
     for i in range(k):
         alt = " ".join(c[min(i, len(c) - 1)] for c in cands)
-        key = " ".join(alt.split()).lower()
-        if alt and key not in seen:
-            seen.add(key)
+        alt_key = key(alt)
+        if alt and alt_key not in seen:
+            seen.add(alt_key)
             out.append(alt)
     return out[:n], model_id
 
