@@ -34,6 +34,7 @@ import torch
 from app import asr, tts
 from app import translate as translate_mod
 from app.main import app as api
+from app.config import settings
 from app.translate import ENGLISH, KIKAMBA
 
 GPU_MODEL_ID = os.getenv("NLLB_GPU_MODEL_ID", "")
@@ -82,12 +83,37 @@ if TTS_GPU_MODEL_ID:
     _omni = OmniVoice.from_pretrained(TTS_GPU_MODEL_ID)
     # Clone prompts for the two Kamba reference speakers (app/data/voices), built
     # on CPU now because real GPU work can only happen inside @spaces.GPU calls.
+    def _clone_prompt(wav_path: str, ref_text: str):
+        samples, sr = sf.read(wav_path, dtype="float32")
+        return _omni.create_voice_clone_prompt((torch.from_numpy(samples).unsqueeze(0), sr), ref_text)
+
     _voice_prompts = {}
-    for _voice in tts.VOICES:
-        _samples, _sr = sf.read(os.path.join(VOICES_DIR, f"kamba_{_voice}.wav"), dtype="float32")
+    for _voice in ("female", "male"):
         with open(os.path.join(VOICES_DIR, f"kamba_{_voice}.txt"), encoding="utf-8") as _f:
-            _ref_text = _f.read().strip()
-        _voice_prompts[_voice] = _omni.create_voice_clone_prompt((torch.from_numpy(_samples).unsqueeze(0), _sr), _ref_text)
+            _voice_prompts[_voice] = _clone_prompt(os.path.join(VOICES_DIR, f"kamba_{_voice}.wav"), _f.read().strip())
+
+    # A consenting contributor's voice, cloned from one recording in the private
+    # voice dataset, so the clip is never published in this public Space.
+    # CONTRIBUTOR_VOICE_REF is that recording's file_name in metadata.jsonl
+    # (".../audio/<speaker>/<id>.wav", relative to its session folder under data/).
+    # FEMALE_VOICE=contributor makes the website's "Woman" voice use it.
+    _ref = os.getenv("CONTRIBUTOR_VOICE_REF", "").strip()
+    if _ref and settings.voice_dataset_repo:
+        try:
+            import json
+
+            from huggingface_hub import hf_hub_download
+
+            _session, _file = _ref.split("/", 1)
+            _meta = hf_hub_download(settings.voice_dataset_repo, f"data/{_session}/metadata.jsonl", repo_type="dataset")
+            with open(_meta, encoding="utf-8") as _f:
+                _row = next(r for r in map(json.loads, filter(str.strip, _f)) if r["file_name"] == _file)
+            _wav = hf_hub_download(settings.voice_dataset_repo, f"data/{_session}/{_file}", repo_type="dataset")
+            _voice_prompts["contributor"] = _clone_prompt(_wav, _row["text"])
+            if os.getenv("FEMALE_VOICE", "").strip() == "contributor":
+                _voice_prompts["female"] = _voice_prompts["contributor"]
+        except Exception as e:  # keep the standard voices if the reference can't be loaded
+            print(f"[startup] contributor voice unavailable: {e}", flush=True)
     # Stay in float32: casting the loaded model to float16 makes it output silence
     # (some of its modules need full precision). 0.6B params is ~2.4 GB on the GPU.
     _omni = _omni.to("cuda")
@@ -105,6 +131,8 @@ if TTS_GPU_MODEL_ID:
         return [np.asarray(a, dtype=np.float32) for a in audios]
 
     def _speak(text: str, voice: str) -> bytes:
+        if voice not in _voice_prompts:
+            raise ValueError(f"voice {voice!r} is not configured on this Space")
         sentences = split_sentences(text) or [text]
         pause = np.zeros(int(_SAMPLE_RATE * 0.25), dtype=np.float32)
         pieces = [x for audio in _speak_on_gpu(sentences, voice) for x in (audio, pause)][:-1]

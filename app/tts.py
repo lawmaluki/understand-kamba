@@ -54,7 +54,9 @@ def _normalize(text: str) -> str:
     return " ".join(plain.replace("’", "'").lower().split())
 
 
-VOICES = ("female", "male")
+# "contributor" is a consenting speaker's voice cloned from a private recording
+# (CONTRIBUTOR_VOICE_REF on the Space); it exists only when that is configured.
+VOICES = ("female", "male", "contributor")
 
 # Optional GPU voice, installed by space/server.py (OmniVoice cloning a real
 # Kamba speaker): (text, voice) -> WAV bytes. If it raises (e.g. the Space's

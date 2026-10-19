@@ -65,7 +65,9 @@ class TranslateResponse(BaseModel):
 
 class SynthesizeRequest(BaseModel):
     text: str = Field(min_length=1, max_length=settings.max_translate_chars)
-    voice: Literal["female", "male"] = "female"  # used by the GPU voice; the fallback has one voice
+    # used by the GPU voice; the fallback has one voice. "contributor" only works when the
+    # Space has CONTRIBUTOR_VOICE_REF set (space/server.py).
+    voice: Literal["female", "male", "contributor"] = "female"
 
 
 class FeedbackRequest(BaseModel):

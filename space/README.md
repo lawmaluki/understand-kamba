@@ -37,6 +37,9 @@ Interactive docs: `/docs`.
 | `TTS_GPU_MODEL_ID` | `k2-fsa/OmniVoice` | Voice model run on the GPU, cloning the speakers in `app/data/voices`. Remove to use only the Swahili voice. |
 | `NLLB_MODEL_ID` | `lawmaluki/nllb-200-1.3B-kamba-ft` | CPU translation model (fallback when the GPU can't be used). |
 | `VOICE_DATASET_REPO` | `lawmaluki/kamba-voice-recordings` | Private dataset that contributed recordings are pushed to every 5 minutes. |
+| `ASR_MODEL_ID` | `lawmaluki/w2v-bert-2.0_kamba` | Speech recognition model: a private MIT-licensed mirror of `FarmerlineML/w2v-bert-2.0_kamba`, which was removed from the Hub in October 2026. |
+| `CONTRIBUTOR_VOICE_REF` | `<session>/audio/<speaker>/<id>.wav` | One recording in the private voice dataset, from a speaker who agreed to be the app's voice; cloned as the `contributor` voice. The clip stays private. |
+| `FEMALE_VOICE` | `contributor` (optional) | Makes the website's "Woman" voice use the contributor's voice instead of the FLEURS speaker. |
 | `HF_TOKEN` (secret) | a write token | Lets the Space push recordings, corrections and usage stats to private datasets: `VOICE_DATASET_REPO`, `<owner>/kamba-translation-corrections` and `<owner>/kamba-app-stats` (override with `CORRECTIONS_DATASET_REPO` / `STATS_DATASET_REPO`). |
 
 API calls from the website carry no visitor token, so ZeroGPU charges them to one daily GPU

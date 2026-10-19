@@ -146,7 +146,7 @@ Backend settings are read from environment variables, normally supplied through 
 | ANTHROPIC_API_KEY | (empty) | Required only when TRANSLATION_BACKEND=anthropic |
 | TRANSLATION_MODEL | (empty) | Claude model ID, required only when TRANSLATION_BACKEND=anthropic |
 | MAX_TRANSLATE_CHARS | 500 | Longest text accepted. Keep in step with MAX_TRANSLATE_CHARS in web/src/lib/api.ts. |
-| ASR_MODEL_ID | FarmerlineML/w2v-bert-2.0_kamba | Speech recognition model. facebook/mms-1b-all (with ASR_TARGET_LANG=kam) is more accurate on FLEURS (7% vs 11% character error, section 8) but larger and slower; test it on real app recordings before switching. |
+| ASR_MODEL_ID | lawmaluki/w2v-bert-2.0_kamba | Speech recognition model: a private mirror of FarmerlineML/w2v-bert-2.0_kamba (MIT), whose original was removed from the Hub in October 2026; loading it needs an HF_TOKEN with access to the mirror. facebook/mms-1b-all (with ASR_TARGET_LANG=kam) is more accurate on FLEURS (7% vs 11% character error, section 8) but larger and slower; test it on real app recordings before switching. |
 | ASR_TARGET_LANG | kam | Language adapter, used only with MMS models |
 | MAX_AUDIO_SECONDS | 60 | Audio longer than this is trimmed. Keep in step with MAX_RECORDING_SECONDS in web/src/lib/api.ts. |
 | SAMPLE_RATE | 16000 | Sample rate audio is converted to before transcription |
@@ -166,6 +166,8 @@ Backend settings are read from environment variables, normally supplied through 
 | TRANSCRIBE_PER_HOUR | 60 | Speech-to-text requests (upload or link) per visitor per hour |
 | NLLB_GPU_MODEL_ID | (empty) | Hugging Face Space only (space/server.py): translation model run on the ZeroGPU GPU, e.g. lawmaluki/nllb-200-1.3B-kamba-ft. NLLB_MODEL_ID becomes the CPU fallback. |
 | STATS_DATASET_REPO | <voice dataset owner>/kamba-app-stats | Private dataset the usage counts and ratings are synced to every 5 minutes, so they survive restarts. Empty keeps them local only. |
+| CONTRIBUTOR_VOICE_REF | (empty) | Hugging Face Space only: a recording in the private voice dataset (`<session>/audio/<speaker>/<id>.wav`) from a speaker who consented to be the app's voice. Cloned as the `contributor` voice (POST /synthesize with voice=contributor); the clip is never published. |
+| FEMALE_VOICE | (empty) | Set to `contributor` to make the website's Woman voice use that speaker. |
 | TTS_GPU_MODEL_ID | (empty) | Hugging Face Space only: voice model run on the ZeroGPU GPU, k2-fsa/OmniVoice, cloning the speakers in app/data/voices. TTS_MODEL_ID becomes the fallback. |
 
 Web app setting (web/.env.local):

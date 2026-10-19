@@ -12,7 +12,9 @@ from dataclasses import dataclass
 @dataclass
 class Settings:
     # ASR
-    asr_model_id: str = os.getenv("ASR_MODEL_ID", "FarmerlineML/w2v-bert-2.0_kamba")
+    # FarmerlineML/w2v-bert-2.0_kamba (MIT) was removed from the Hub in October 2026; this is a
+    # private mirror of it (needs HF_TOKEN with access), or use facebook/mms-1b-all.
+    asr_model_id: str = os.getenv("ASR_MODEL_ID", "lawmaluki/w2v-bert-2.0_kamba")
     asr_target_lang: str = os.getenv("ASR_TARGET_LANG", "kam")  # MMS adapter only
 
     # Text-to-speech (see app/tts.py for why this is a Swahili voice)

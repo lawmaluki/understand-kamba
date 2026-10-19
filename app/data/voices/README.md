@@ -18,3 +18,11 @@ public use, consider replacing these with recordings from Kamba speakers who
 have agreed to be the app's voice (for example via the /contribute page):
 replace the .wav (8-12 s, one speaker, quiet room) and its exact .txt
 transcript, then redeploy.
+
+## A consenting contributor's voice (October 2026)
+
+A speaker who recorded through /contribute agreed to be the app's voice. Her
+reference clip is **not** stored here: the Space downloads it from the private
+voice dataset at startup (`CONTRIBUTOR_VOICE_REF`, see space/README.md) and
+offers it as the `contributor` voice. Setting `FEMALE_VOICE=contributor` makes
+the website's "Woman" voice use her instead of the FLEURS speaker above.
