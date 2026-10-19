@@ -8,6 +8,7 @@ Improve the translator using only existing public data, on a free Kaggle or Cola
 | `filter_opus.py` | Picks the usable part of the 1.6M machine-mined OPUS pairs → `data/opus_filtered.tsv.gz` (14,818 pairs) |
 | `finetune_nllb.py` | Fine-tunes NLLB with LoRA and compares it with the original model |
 | `finetune_kaggle.ipynb` | Notebook that runs all of it on a free GPU |
+| `voice_kaggle.ipynb` | Trains a Kamba voice from a consenting contributor's recordings (MMS Swahili voice fine-tuned on her clips); runs on CPU once trained |
 | `review_corrections.py` | Exports corrections users sent from the app for review, and imports the approved ones into `data/community/` |
 
 ## How to run the fine-tuning
@@ -79,3 +80,14 @@ Guidelines for translators:
 ## Licences
 
 The training data mixes licences. CC-BY-NC stories mean a model trained on them should stay non-commercial, which the deployed NLLB model already is. CC-BY-SA (FLORES) requires attribution and share-alike for the data itself. Credit the GlotStoryBook / African Storybook authors and translators when publishing a model.
+
+## Training a contributor's voice
+
+`voice_kaggle.ipynb` fine-tunes Meta's MMS Swahili voice on recordings of one consenting speaker (private dataset
+`lawmaluki/kamba-voice-tts-contributor`, built from her `/contribute` recordings). The result is a small model that
+runs on CPU, so it never depends on the GPU allowance. Run it on Kaggle like the translation notebook; also add your
+Hugging Face token as a Kaggle secret named `HF_TOKEN` (Add-ons → Secrets). It ends with a listening comparison and an
+intelligibility test against the original Swahili voice.
+
+With her current ~3 minutes this is an experiment; 80–150 recordings (15–20 minutes) are recommended. The model cannot
+pronounce ĩ/ũ differently from i/u, because the Swahili voice it starts from has no such letters.
