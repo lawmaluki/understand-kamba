@@ -81,13 +81,15 @@ Guidelines for translators:
 
 The training data mixes licences. CC-BY-NC stories mean a model trained on them should stay non-commercial, which the deployed NLLB model already is. CC-BY-SA (FLORES) requires attribution and share-alike for the data itself. Credit the GlotStoryBook / African Storybook authors and translators when publishing a model.
 
-## Training a contributor's voice
+## Training a Kamba voice
 
-`voice_kaggle.ipynb` fine-tunes Meta's MMS Swahili voice on recordings of one consenting speaker (private dataset
-`lawmaluki/kamba-voice-tts-contributor`, built from her `/contribute` recordings). The result is a small model that
-runs on CPU, so it never depends on the GPU allowance. Run it on Kaggle like the translation notebook; also add your
-Hugging Face token as a Kaggle secret named `HF_TOKEN` (Add-ons → Secrets). It ends with a listening comparison and an
-intelligibility test against the original Swahili voice.
+`voice_kaggle.ipynb` fine-tunes one of Meta's MMS voices on recordings of a single Kikamba speaker. The result is a
+small model that runs on CPU, so it never depends on the GPU allowance. Run it on Kaggle like the translation notebook,
+and add your Hugging Face token as a Kaggle secret named `HF_TOKEN` (Add-ons → Secrets). Choose in step 0:
 
-With her current ~3 minutes this is an experiment; 80–150 recordings (15–20 minutes) are recommended. The model cannot
-pronounce ĩ/ũ differently from i/u, because the Swahili voice it starts from has no such letters.
+- `DATASET`: `lawmaluki/kamba-tts-ddd-speaker-d` (894 clips, 2.2 h of a 66-year-old woman from Digital Divide Data's
+  public Kamba dataset, CC-BY-4.0, credit DDD), or `lawmaluki/kamba-voice-tts-contributor` (the consenting app
+  contributor, 3 minutes: an experiment only). All are private copies prepared for training.
+- `BASE`: `kik` starts from the Kikuyu voice, which knows ĩ/ũ (recommended); `swh` from Swahili, which reads them as i/u.
+
+It ends with a side-by-side listening comparison and a clarity test (speech recogniser on 20 unseen sentences).
