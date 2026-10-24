@@ -164,6 +164,8 @@ Backend settings are read from environment variables, normally supplied through 
 | SUGGESTIONS_PER_HOUR | 60 | Correction-box suggestion requests per visitor per hour |
 | SYNTHESIZE_PER_HOUR | 100 | Read-aloud requests per visitor per hour |
 | TRANSCRIBE_PER_HOUR | 60 | Speech-to-text requests (upload or link) per visitor per hour |
+| NLLB_CT2_MODEL_ID | (empty) | A CTranslate2 int8 conversion of the NLLB model, e.g. lawmaluki/nllb-200-1.3B-kamba-ft-ct2-int8: the same translations about 3.5x faster on CPU in a quarter of the memory. Replaces NLLB_MODEL_ID for CPU translation. Used by the hosted backend since October 2026. |
+| CPU_THREADS | (auto) | Threads for CPU models. By default the CPUs the container may really use (os.cpu_count() reports the whole host inside a container, and oversubscribing made translation ~40x slower on the Space). |
 | NLLB_GPU_MODEL_ID | (empty) | Hugging Face Space only (space/server.py): translation model run on the ZeroGPU GPU, e.g. lawmaluki/nllb-200-1.3B-kamba-ft. NLLB_MODEL_ID becomes the CPU fallback. |
 | STATS_DATASET_REPO | <voice dataset owner>/kamba-app-stats | Private dataset the usage counts and ratings are synced to every 5 minutes, so they survive restarts. Empty keeps them local only. |
 | CONTRIBUTOR_VOICE_REF | (empty) | Hugging Face Space only: a recording in the private voice dataset (`<session>/audio/<speaker>/<id>.wav`) from a speaker who consented to be the app's voice. Cloned as the `contributor` voice (POST /synthesize with voice=contributor); the clip is never published. |

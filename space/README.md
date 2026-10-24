@@ -33,7 +33,8 @@ Interactive docs: `/docs`.
 
 | Variable | Value | Purpose |
 |---|---|---|
-| `NLLB_GPU_MODEL_ID` | `lawmaluki/nllb-200-1.3B-kamba-ft` | Translation model run on the GPU. Remove to translate on CPU only. |
+| `NLLB_CT2_MODEL_ID` | `lawmaluki/nllb-200-1.3B-kamba-ft-ct2-int8` | Fast int8 CPU translation (about 1.3 s per request here). Since the Space stopped getting a ZeroGPU GPU (October 2026), translation runs only on CPU. |
+| `NLLB_GPU_MODEL_ID` | (removed) | Translation model on the GPU. Set it again (e.g. `lawmaluki/nllb-200-1.3B-kamba-ft`) only if the Space has a GPU. |
 | `TTS_GPU_MODEL_ID` | `k2-fsa/OmniVoice` | Voice model run on the GPU, cloning the speakers in `app/data/voices`. Remove to use only the Swahili voice. |
 | `NLLB_MODEL_ID` | `lawmaluki/nllb-200-1.3B-kamba-ft` | CPU translation model (fallback when the GPU can't be used). |
 | `VOICE_DATASET_REPO` | `lawmaluki/kamba-voice-recordings` | Private dataset that contributed recordings are pushed to every 5 minutes. |
