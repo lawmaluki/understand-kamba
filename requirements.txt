@@ -9,3 +9,4 @@ yt-dlp>=2024.4.9
 pydantic>=2.6
 python-dotenv>=1.0  # scripts/ load .env with it
 imageio-ffmpeg>=0.5  # bundled ffmpeg when none is on PATH
+ctranslate2>=4.4  # fast int8 CPU translation (NLLB_CT2_MODEL_ID)

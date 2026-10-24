@@ -10,3 +10,4 @@ imageio-ffmpeg>=0.5
 python-multipart>=0.0.9
 yt-dlp>=2024.4.9
 anthropic>=0.34
+ctranslate2>=4.4  # fast int8 CPU translation (NLLB_CT2_MODEL_ID)

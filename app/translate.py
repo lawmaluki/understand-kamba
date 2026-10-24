@@ -49,9 +49,61 @@ def _load_nllb():
             return
         from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
+        if settings.nllb_ct2_model_id:
+            import os
+
+            import ctranslate2
+            from huggingface_hub import snapshot_download
+
+            path = snapshot_download(settings.nllb_ct2_model_id)
+            _nllb_tokenizer = AutoTokenizer.from_pretrained(path)
+            threads = usable_cpus()
+            _nllb_model = ctranslate2.Translator(path, device="cpu", compute_type="int8", intra_threads=threads)
+            print(f"[translate] {settings.nllb_ct2_model_id} on CPU, {threads} threads", flush=True)
+            return
         _nllb_tokenizer = AutoTokenizer.from_pretrained(settings.nllb_model_id)
         _nllb_model = AutoModelForSeq2SeqLM.from_pretrained(settings.nllb_model_id)
         _nllb_model.eval()
+
+
+def usable_cpus() -> int:
+    """CPUs this process may really use. os.cpu_count() reports the whole host inside a container
+    (e.g. on a Hugging Face Space), and running that many threads on 2 real CPUs is many times slower."""
+    import math
+    import os
+
+    if os.getenv("CPU_THREADS"):
+        return max(1, int(os.environ["CPU_THREADS"]))
+    n = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 2)
+    try:  # cgroup v2 CPU quota, e.g. "200000 100000" = 2 CPUs
+        quota, period = open("/sys/fs/cgroup/cpu.max").read().split()[:2]
+        if quota != "max":
+            n = min(n, max(1, math.ceil(int(quota) / int(period))))
+    except (OSError, ValueError):
+        pass
+    return max(1, min(n, 8))
+
+
+def cpu_model_id() -> str:
+    """Id of the model that translates on CPU (reported in API responses)."""
+    return settings.nllb_ct2_model_id or settings.nllb_model_id
+
+
+def _is_ct2(model) -> bool:
+    return type(model).__module__.startswith("ctranslate2")
+
+
+def _ct2_translate(model, tokenizer, sentences, src_code, tgt_code, k=1):
+    """CTranslate2 version of the beam search below (same settings); returns k candidates per sentence."""
+    with _nllb_lock:
+        tokenizer.src_lang = src_code
+        batch = [tokenizer.convert_ids_to_tokens(tokenizer(s)["input_ids"]) for s in sentences]
+    results = model.translate_batch(
+        batch, target_prefix=[[tgt_code]] * len(batch), beam_size=max(settings.nllb_num_beams, k),
+        num_hypotheses=k, no_repeat_ngram_size=4, max_batch_size=8,
+        max_decoding_length=max(len(b) for b in batch) * 2 + 16)
+    return [[tokenizer.decode(tokenizer.convert_tokens_to_ids(h[1:]), skip_special_tokens=True).strip()
+             for h in r.hypotheses] for r in results]
 
 
 # Split after sentence-final punctuation followed by whitespace. NLLB is
@@ -116,6 +168,8 @@ def split_sentences(text: str) -> list[str]:
 def nllb_generate(model, tokenizer, sentences: list[str], src_code: str, tgt_code: str, device: str = "cpu") -> list[str]:
     """Translate a batch of sentences with an NLLB model. Shared by the CPU
     path below and the Space's GPU path (space/server.py)."""
+    if _is_ct2(model):
+        return [c[0] for c in _ct2_translate(model, tokenizer, sentences, src_code, tgt_code)]
     import torch
 
     with _nllb_lock:  # tokenizer.src_lang is shared mutable state
@@ -138,6 +192,8 @@ def nllb_nbest(model, tokenizer, sentences: list[str], src_code: str, tgt_code: 
                device: str = "cpu") -> list[list[str]]:
     """The k best translations of each sentence from beam search, best first.
     Same decoding settings as nllb_generate, so candidate 0 is the normal translation."""
+    if _is_ct2(model):
+        return _ct2_translate(model, tokenizer, sentences, src_code, tgt_code, k)
     import torch
 
     with _nllb_lock:
@@ -187,17 +243,17 @@ def _nllb_translate(text: str, source_language: str, target_language: str) -> tu
         )
     sentences = split_sentences(text)
     if not sentences:
-        return "", settings.nllb_model_id
+        return "", cpu_model_id()
     src, tgt = _NLLB_LANG_CODES[source_language], _NLLB_LANG_CODES[target_language]
 
     if _accelerator is not None:
         try:
             return " ".join(_accelerator(sentences, src, tgt)), _accelerator_name
         except Exception as e:
-            print(f"[translate] {_accelerator_name} unavailable ({e}); using {settings.nllb_model_id}", flush=True)
+            print(f"[translate] {_accelerator_name} unavailable ({e}); using {cpu_model_id()}", flush=True)
 
     _load_nllb()
-    return " ".join(nllb_generate(_nllb_model, _nllb_tokenizer, sentences, src, tgt)), settings.nllb_model_id
+    return " ".join(nllb_generate(_nllb_model, _nllb_tokenizer, sentences, src, tgt)), cpu_model_id()
 
 
 def suggestions(text: str, source_language: str, target_language: str, current: str = "",
@@ -209,15 +265,15 @@ def suggestions(text: str, source_language: str, target_language: str, current: 
         return [], settings.translation_model
     sentences = split_sentences(text)
     if not sentences:
-        return [], settings.nllb_model_id
+        return [], cpu_model_id()
     src, tgt = _NLLB_LANG_CODES[source_language], _NLLB_LANG_CODES[target_language]
     k = n + 2  # the best one is usually `current`; ask for spares to survive de-duplication
-    cands, model_id = None, settings.nllb_model_id
+    cands, model_id = None, cpu_model_id()
     if _nbest_accelerator is not None:
         try:
             cands, model_id = _nbest_accelerator(sentences, src, tgt, k), _accelerator_name
         except Exception as e:
-            print(f"[translate] GPU suggestions unavailable ({e}); using {settings.nllb_model_id}", flush=True)
+            print(f"[translate] GPU suggestions unavailable ({e}); using {cpu_model_id()}", flush=True)
     if cands is None:
         _load_nllb()
         cands = nllb_nbest(_nllb_model, _nllb_tokenizer, sentences, src, tgt, k)

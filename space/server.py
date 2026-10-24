@@ -37,6 +37,10 @@ from app.main import app as api
 from app.config import settings
 from app.translate import ENGLISH, KIKAMBA
 
+# Inside the Space container os.cpu_count() is the whole host; too many threads on 2 real CPUs is very slow.
+torch.set_num_threads(translate_mod.usable_cpus())
+print(f"[startup] CPU threads: {torch.get_num_threads()}", flush=True)
+
 GPU_MODEL_ID = os.getenv("NLLB_GPU_MODEL_ID", "")
 
 

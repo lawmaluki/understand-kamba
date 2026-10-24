@@ -56,6 +56,10 @@ class Settings:
     # Translation
     translation_backend: str = os.getenv("TRANSLATION_BACKEND", "nllb")  # "nllb" or "anthropic"
     nllb_model_id: str = os.getenv("NLLB_MODEL_ID", "facebook/nllb-200-distilled-600M")
+    # A CTranslate2 (int8) conversion of the NLLB model, e.g.
+    # lawmaluki/nllb-200-1.3B-kamba-ft-ct2-int8: same translations, several times faster on CPU and
+    # a quarter of the memory. When set it replaces NLLB_MODEL_ID for CPU translation.
+    nllb_ct2_model_id: str = os.getenv("NLLB_CT2_MODEL_ID", "")
     nllb_num_beams: int = int(os.getenv("NLLB_NUM_BEAMS", "5"))
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
     translation_model: str = os.getenv("TRANSLATION_MODEL", "")
