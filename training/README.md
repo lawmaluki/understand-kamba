@@ -114,3 +114,25 @@ at first and a few thousand steps do not recover it. Not used in the app. Option
 `data/flores200_dev.tsv` and `data/flores200_devtest.tsv` are FLORES-200 Kikamba/English from Meta's official release
 (CC-BY-SA-4.0; SHA-256 of the Kikamba lines matches the paper). The public training pairs are frozen in `data/kam_eng.tsv`
 and `data/kam_swh.tsv`: their upstream corpus (kithyadan/kikamba-corpus) was rewritten in October 2026 without them.
+
+## Phase 2 result (October 2026): back-translation did not help
+
+`backtranslate_kaggle.ipynb` trained the current model further on 40,000 back-translated DDD sentences (machine English
+→ real Kikamba) plus all earlier data, 1 epoch:
+
+| Test set / direction | Current model | + back-translation |
+|---|---|---|
+| stories, Kikamba → English | 37.09 | 37.25 |
+| stories, English → Kikamba | 29.24 | 28.73 |
+| FLORES devtest, Kikamba → English | 44.08 | 43.89 |
+| FLORES devtest, English → Kikamba | 33.13 | 33.19 |
+
+All changes are within run-to-run noise (about ±0.5); not deployed. A Kikamba speaker judged the held-out story
+references clearly better than the new model's output. Two causes visible in the outputs:
+
+- DDD transcripts mix spellings of the tilde vowels (some sessions write î, û or ū for ĩ, ũ); the model copied them.
+  Normalise î→ĩ, û/ū→ũ before any future use of DDD text.
+- DDD covers cultural topics (weddings, burials, etiquette), not everyday objects, so words such as *muvuko* (bag),
+  *sokisi* (socks) or *ngovia* (hat) stay unknown. Back-translation can only teach words its sentences contain.
+
+Conclusion: existing public data is exhausted. Further gains need sentences checked by Kikamba speakers.
