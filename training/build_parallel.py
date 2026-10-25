@@ -7,7 +7,8 @@ OPUS-NLLB (machine-mined, misaligned, mostly religious), FineTranslations
 (English side is machine translation), Bloom (religious, CC-BY-NC-ND),
 KnoxDevelopers (Bible verses).
 
-Sources, downloaded from kithyadan/kikamba-corpus at a pinned commit:
+Sources (frozen in training/data/kam_eng.tsv and kam_swh.tsv; originally from kithyadan/kikamba-corpus,
+commit 9617445, which has since been rewritten without them):
   glotstorybook  children's stories, human translations (CC-BY-4.0 / CC-BY-NC-4.0)
   tatoeba        short conversational sentences (CC-BY-2.0-FR)
   flores200 dev  997 professional translations (CC-BY-SA-4.0). FLORES *devtest*
@@ -30,11 +31,7 @@ import json
 import os
 import re
 import unicodedata
-import urllib.request
 
-COMMIT = "961744532eeacbfeba1fa67b4eaede3f47633485"
-BASE = f"https://raw.githubusercontent.com/kithyadan/kikamba-corpus/{COMMIT}/data/parallel"
-SOURCES = ["glotstorybook", "tatoeba", "flores200"]
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "data")
@@ -54,27 +51,17 @@ def plausible(kam: str, other: str) -> bool:
     return 0.4 <= a / b <= 2.5 if min(a, b) > 3 else True
 
 
-def fetch(name: str) -> list[dict]:
-    with urllib.request.urlopen(f"{BASE}/{name}.jsonl", timeout=60) as r:
-        return [json.loads(line) for line in r.read().decode("utf-8").splitlines() if line.strip()]
-
-
 def main():
     pairs = {"eng": {}, "swh": {}}  # lang -> {(kam, other): (source, license, doc)}
     dropped = 0
-    for name in SOURCES:
-        for rec in fetch(name):
-            lang = rec.get("translation_lang")
-            if lang not in pairs:
-                continue
-            if name == "flores200" and (rec.get("extra") or {}).get("flores_split") != "dev":
-                continue  # devtest is the evaluation set
-            kam, other = clean(rec["text"]), clean(rec["translation"])
-            if not plausible(kam, other):
-                dropped += 1
-                continue
-            doc = (rec.get("extra") or {}).get("file") or name  # the story a sentence belongs to
-            pairs[lang].setdefault((kam, other), (name, rec["license"], doc))
+    # Public pairs: frozen in the repo. They came from kithyadan/kikamba-corpus (commit 9617445,
+    # September 2026), which has since been rewritten without these files.
+    for lang in pairs:
+        path = os.path.join(OUT, f"kam_{lang}.tsv")
+        with open(path, encoding="utf-8", newline="") as f:
+            for row in csv.DictReader(f, delimiter="\t"):
+                if not row["source"].startswith("community:"):
+                    pairs[lang].setdefault((row["kam"], row[lang]), (row["source"], row["license"], row["doc"]))
 
     for path in sorted(glob.glob(os.path.join(COMMUNITY, "*.tsv"))):
         with open(path, encoding="utf-8", newline="") as f:

@@ -25,7 +25,6 @@ import os
 import random
 import sys
 import time
-import urllib.request
 
 import torch
 
@@ -40,8 +39,6 @@ os.environ.setdefault("DISABLE_SAFETENSORS_CONVERSION", "1")
 from app.translate import nllb_generate  # noqa: E402  (same decoding as the app)
 
 KAM, ENG = "kam_Latn", "eng_Latn"
-FLORES_URL = ("https://raw.githubusercontent.com/kithyadan/kikamba-corpus/"
-              "961744532eeacbfeba1fa67b4eaede3f47633485/data/parallel/flores200.jsonl")
 SEED = 1234
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -63,11 +60,29 @@ def load_data(n_test_stories: int):
     with gzip.open(os.path.join(HERE, "data", "opus_filtered.tsv.gz"), "rt", encoding="utf-8") as f:
         opus = [(r["kam"], r["eng"]) for r in csv.DictReader(f, delimiter="\t")]
 
-    with urllib.request.urlopen(FLORES_URL, timeout=60) as r:
-        rows = [json.loads(x) for x in r.read().decode("utf-8").splitlines() if x.strip()]
-    flores_test = [(x["text"], x["translation"]) for x in rows
-                   if x["translation_lang"] == "eng" and (x.get("extra") or {}).get("flores_split") == "devtest"]
+    # FLORES-200 devtest from Meta's official release (training/data/flores200_devtest.tsv).
+    with open(os.path.join(HERE, "data", "flores200_devtest.tsv"), encoding="utf-8") as f:
+        flores_test = [(r["kam"], r["eng"]) for r in csv.DictReader(f, delimiter="	")]
     return clean_train, opus, story_test, flores_test
+
+
+def load_back_translation(args, tests):
+    """Back-translated pairs as English -> Kikamba examples: machine English as the source, real
+    Kikamba as the target, so the model learns to write natural Kikamba. Test sentences (the
+    everyday test set and the held-out tests) are never included."""
+    if not args.bt_file:
+        return []
+    excluded = {t.strip() for pair in tests for t in pair}
+    everyday = os.path.join(REPO, "eval", "everyday", "sentences.tsv")
+    if os.path.exists(everyday):
+        with open(everyday, encoding="utf-8") as f:
+            excluded |= {r["kam"].strip() for r in csv.DictReader(f, delimiter="\t")}
+    with open(args.bt_file, encoding="utf-8") as f:
+        rows = [r for r in csv.DictReader(f, delimiter="\t") if r["kam"].strip() not in excluded and r["eng"].strip()]
+    random.Random(SEED).shuffle(rows)
+    rows = rows[:8 if args.smoke else args.bt_max]
+    log(f"back-translated pairs: {len(rows):,} (after excluding {len(excluded):,} test sentences)")
+    return [(r["eng"], r["kam"], ENG, KAM) for r in rows]
 
 
 # ---------------------------------------------------------------- alignment scoring
@@ -116,15 +131,15 @@ def filter_by_alignment(model, tok, opus, keep_frac):
 # ---------------------------------------------------------------- training
 
 class PairDataset(torch.utils.data.Dataset):
-    """Each (kam, eng) pair becomes two examples, one per direction."""
+    """Each (kam, eng) pair becomes two examples, one per direction. `one_way` adds single-direction
+    examples (source, target, src_lang, tgt_lang), used for back-translated pairs."""
 
-    def __init__(self, tok, pairs, max_len=128):
+    def __init__(self, tok, pairs, max_len=128, one_way=()):
         self.items = []
-        for kam, eng in pairs:
-            for s, t, sl, tl in ((kam, eng, KAM, ENG), (eng, kam, ENG, KAM)):
-                tok.src_lang, tok.tgt_lang = sl, tl
-                enc = tok(s, text_target=t, truncation=True, max_length=max_len)
-                self.items.append(enc)
+        examples = [ex for kam, eng in pairs for ex in ((kam, eng, KAM, ENG), (eng, kam, ENG, KAM))] + list(one_way)
+        for s, t, sl, tl in examples:
+            tok.src_lang, tok.tgt_lang = sl, tl
+            self.items.append(tok(s, text_target=t, truncation=True, max_length=max_len))
         random.Random(SEED).shuffle(self.items)
 
     def __len__(self):
@@ -156,7 +171,7 @@ def Progress():
     return _Progress()
 
 
-def train(model, tok, pairs, args):
+def train(model, tok, pairs, args, one_way=()):
     from peft import LoraConfig, get_peft_model
     from transformers import DataCollatorForSeq2Seq, Seq2SeqTrainer, Seq2SeqTrainingArguments
 
@@ -166,8 +181,8 @@ def train(model, tok, pairs, args):
         r=args.lora_r, lora_alpha=2 * args.lora_r, lora_dropout=0.05, task_type="SEQ_2_SEQ_LM",
         target_modules=["q_proj", "k_proj", "v_proj", "out_proj", "fc1", "fc2"]))
     model.print_trainable_parameters()
-    data = PairDataset(tok, pairs)
-    log(f"training on {len(data):,} examples ({len(pairs):,} pairs x 2 directions)")
+    data = PairDataset(tok, pairs, one_way=one_way)
+    log(f"training on {len(data):,} examples ({len(pairs):,} pairs x 2 directions + {len(one_way):,} back-translated)")
     steps = -(-len(data) // (args.batch * args.grad_accum)) * args.epochs
     warmup = max(1, int(0.05 * (args.max_steps if args.max_steps > 0 else steps)))  # int: works on transformers 4 and 5
     trainer = Seq2SeqTrainer(
@@ -224,6 +239,9 @@ def main():
     ap.add_argument("--skip-base-eval", action="store_true")
     ap.add_argument("--max-steps", type=int, default=-1)
     ap.add_argument("--smoke", action="store_true", help="tiny run on CPU to check the pipeline works")
+    ap.add_argument("--bt-file", help="TSV with columns kam, eng: real Kikamba sentences and their machine English "
+                                      "(back-translation); trained in the English -> Kikamba direction only")
+    ap.add_argument("--bt-max", type=int, default=40000, help="use at most this many back-translated pairs")
     args = ap.parse_args()
 
     from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
@@ -257,7 +275,8 @@ def main():
     else:
         opus_kept = filter_by_alignment(model, tok, opus, args.keep_frac)
         json.dump(opus_kept, open(kept_path, "w", encoding="utf-8"), ensure_ascii=False)
-    model = train(model, tok, clean_train * args.clean_repeat + opus_kept, args)
+    one_way = load_back_translation(args, story_test + flores_test)
+    model = train(model, tok, clean_train * args.clean_repeat + opus_kept, args, one_way=one_way)
     report["finetuned"], outputs = evaluate(model, tok, tests, "fine-tuned")
 
     model.save_pretrained(args.out)

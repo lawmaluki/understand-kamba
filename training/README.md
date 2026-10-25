@@ -6,9 +6,10 @@ Improve the translator using only existing public data, on a free Kaggle or Cola
 |---|---|
 | `build_parallel.py` | Builds the clean, human-translated pairs below |
 | `filter_opus.py` | Picks the usable part of the 1.6M machine-mined OPUS pairs → `data/opus_filtered.tsv.gz` (14,818 pairs) |
-| `finetune_nllb.py` | Fine-tunes NLLB with LoRA and compares it with the original model |
+| `finetune_nllb.py` | Fine-tunes NLLB with LoRA and compares it with the original model (`--bt-file` adds back-translated pairs, English → Kikamba only) |
 | `finetune_kaggle.ipynb` | Notebook that runs all of it on a free GPU |
 | `voice_kaggle.ipynb` | Trains a Kamba voice from a consenting contributor's recordings (MMS Swahili voice fine-tuned on her clips); runs on CPU once trained |
+| `backtranslate_kaggle.ipynb` | Phase 2: collects the ~161k everyday Kikamba sentences of DDD's speech dataset, back-translates them with the current model and fine-tunes on machine English → real Kikamba; compares with the current model |
 | `review_corrections.py` | Exports corrections users sent from the app for review, and imports the approved ones into `data/community/` |
 
 ## How to run the fine-tuning
@@ -107,3 +108,9 @@ Training was learning (mel loss 0.77 → 0.53) and clarity improved steadily acr
 steps → 32.6% at the end of the Kikuyu run), but switching an MMS voice to a new language and speaker degrades it badly
 at first and a few thousand steps do not recover it. Not used in the app. Options that remain: much longer training
 (more speakers or hours), or a model already trained on Kamba speech (OmniVoice), which needs a GPU.
+
+## Test data held in this repo
+
+`data/flores200_dev.tsv` and `data/flores200_devtest.tsv` are FLORES-200 Kikamba/English from Meta's official release
+(CC-BY-SA-4.0; SHA-256 of the Kikamba lines matches the paper). The public training pairs are frozen in `data/kam_eng.tsv`
+and `data/kam_swh.tsv`: their upstream corpus (kithyadan/kikamba-corpus) was rewritten in October 2026 without them.

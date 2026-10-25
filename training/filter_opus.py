@@ -24,8 +24,6 @@ import urllib.request
 import zipfile
 
 OPUS_URL = "https://object.pouta.csc.fi/OPUS-NLLB/v1/moses/en-kam.txt.zip"
-FLORES_URL = ("https://raw.githubusercontent.com/kithyadan/kikamba-corpus/"
-              "961744532eeacbfeba1fa67b4eaede3f47633485/data/parallel/flores200.jsonl")
 MIN_SCORE = 1.06
 MAX_PAIRS = 100_000
 
@@ -69,12 +67,13 @@ def load_opus():
 
 
 def flores_sentences() -> set[str]:
-    with urllib.request.urlopen(FLORES_URL, timeout=60) as r:
-        rows = [json.loads(line) for line in r.read().decode("utf-8").splitlines() if line.strip()]
+    """FLORES-200 dev + devtest (training/data/flores200_*.tsv, from Meta's official release)."""
     out = set()
-    for row in rows:
-        out.add(clean(row["text"]).lower())
-        out.add(clean(row["translation"]).lower())
+    for split in ("dev", "devtest"):
+        with open(os.path.join(HERE, "data", f"flores200_{split}.tsv"), encoding="utf-8") as f:
+            for row in csv.DictReader(f, delimiter="\t"):
+                out.add(clean(row["kam"]).lower())
+                out.add(clean(row["eng"]).lower())
     return out
 
 
