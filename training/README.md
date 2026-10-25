@@ -93,3 +93,17 @@ and add your Hugging Face token as a Kaggle secret named `HF_TOKEN` (Add-ons →
 - `BASE`: `kik` starts from the Kikuyu voice, which knows ĩ/ũ (recommended); `swh` from Swahili, which reads them as i/u.
 
 It ends with a side-by-side listening comparison and a clarity test (speech recogniser on 20 unseen sentences).
+
+### Result (October 2026): not good enough yet
+
+| Run | Starting voice | Clarity (ASR character error, 20 unseen sentences; lower is better) |
+|---|---|---|
+| Speaker D, 2.2 h, ~5,100 steps | Kikuyu | 32.6% (Kikuyu voice untrained: 25.7%) |
+| Speaker D, 2.2 h, ~6,200 steps | Swahili | sounds "a bit like a Kamba lady" but mumbled, glitchy and robotic |
+| For comparison | Swahili voice, untrained (the app's fallback) | 13.3% |
+| For comparison | the recogniser on speaker D's real recordings | 7.2% |
+
+Training was learning (mel loss 0.77 → 0.53) and clarity improved steadily across checkpoints (46.6% after 500
+steps → 32.6% at the end of the Kikuyu run), but switching an MMS voice to a new language and speaker degrades it badly
+at first and a few thousand steps do not recover it. Not used in the app. Options that remain: much longer training
+(more speakers or hours), or a model already trained on Kamba speech (OmniVoice), which needs a GPU.

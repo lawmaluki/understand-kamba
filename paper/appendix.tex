@@ -110,6 +110,7 @@ Issues we met putting the system on free Hugging Face hardware, recorded because
   \item \textbf{OmniVoice without a reference.} Without a clone prompt OmniVoice picks a voice per call, so consecutive sentences can sound like different people; we clone fixed FLEURS speakers instead.
   \item \textbf{Gikuyu voice for Kikamba.} The closely related MMS Gikuyu voice is markedly less intelligible on Kikamba text than the Swahili one (Table~\ref{tab:tts}).
   \item \textbf{Bible LoRA.} The public NLLB LoRA trained on Bible-verse pairs did not improve FLORES scores.
+  \item \textbf{A fine-tuned MMS voice.} Fine-tuning the MMS Kikuyu or Swahili VITS voice on 2.2\,h of one speaker from Digital Divide Data's Kamba dataset (about 5,000--6,000 steps on a T4) gave a voice that sounded partly Kamba but mumbled and robotic: 32.6\% character error in the ASR round trip from a Kikuyu start, against 13.3\% for the untrained Swahili voice and 7.2\% for the speaker's real recordings. Clarity fell to 46.6\% in the first 500 steps and was still recovering when training stopped.
   \item \textbf{Unfiltered mining scores.} Sorting OPUS NLLB by its mining score alone does not isolate good pairs: mid-ranked pairs still include chat noise and non-Kikamba text, which is why the language, religion and dual cross-entropy filters of \S\ref{sec:finetune} were needed.
   \item \textbf{Mined bitext.} OPUS NLLB v1 en--kam (1.63M pairs) is dominated by religious text and contains non-Kikamba target sides; we did not use it.
 \end{itemize}
